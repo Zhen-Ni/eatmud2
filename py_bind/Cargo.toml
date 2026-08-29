@@ -1,0 +1,14 @@
+[package]
+name = "py_bind"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "eatmud"
+crate-type = ["cdylib"]
+
+[dependencies]
+# chrono.workspace = true
+eatmud = { path = "../eatmud_core" }
+pyo3 = "0.29"
+numpy = "0.29"

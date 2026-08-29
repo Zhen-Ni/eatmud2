@@ -1,0 +1,13 @@
+[package]
+name = "eatmud"
+version.workspace = true
+edition.workspace = true
+default-run = "bench_kelly"
+
+[dependencies]
+encoding_rs = "0.8"
+chrono = { workspace = true }
+ndarray = { workspace = true }
+
+[lib]
+crate-type = ["lib"]
