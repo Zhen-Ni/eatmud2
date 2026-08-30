@@ -13,4 +13,4 @@ pub use record::{ConciseRecord, DetailedRecord, get_irrs};
 pub use transaction::{Transaction, TransactionIterator, Weekday};
 
 pub use prelude::*;
-pub use utility::{DAYS_PER_YEAR, SIDE, irr, max_drawdown};
+pub use utility::{DAYS_PER_YEAR, SIDE, irr, max_drawdown, moving_average, exponential_moving_average};

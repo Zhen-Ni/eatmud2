@@ -1,11 +1,11 @@
 pub mod chrono;
+mod common;
 pub mod data;
 pub mod io;
 pub mod record;
 pub mod strategy;
 pub mod transaction;
 pub mod utility;
-mod common;
 
 use pyo3::prelude::*;
 
@@ -27,6 +27,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(record::merge_records, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(utility::irr, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(utility::max_drawdown, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(utility::moving_average, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(
+        utility::exponential_moving_average,
+        m
+    )?)?;
 
     let io_module = PyModule::new(m.py(), "io")?;
     io_module.add_function(pyo3::wrap_pyfunction!(io::read_tdx, &io_module)?)?;
@@ -39,11 +44,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     strategy_module.add_function(wrap_pyfunction!(strategy::kelly_hint, m)?)?;
     m.add_submodule(&strategy_module)?;
 
-
     let io_module = PyModule::new(m.py(), "io")?;
     io_module.add_function(pyo3::wrap_pyfunction!(io::read_tdx, &io_module)?)?;
     m.add_submodule(&io_module)?;
 
-    
     Ok(())
 }

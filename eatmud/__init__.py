@@ -7,7 +7,8 @@ from ._core import FundSlice, StockSlice, Fund, Stock
 from ._core import ConciseRecordSlice, DetailedRecordSlice, \
     ConciseRecord, DetailedRecord, merge_records, get_irrs
 from ._core import Transaction, Weekday
-from ._core import irr, max_drawdown
+from ._core import irr, max_drawdown, moving_average, \
+    exponential_moving_average
 from . import io
 from . import strategy
 
@@ -15,7 +16,8 @@ __all__ = ['_core',
            'Date',
            'Fund', 'Stock',
            'ConciseRecord', 'DetailedRecord', 'merge_records', 'get_irrs',
-           'irr', 'max_drawdown',
+           'irr', 'max_drawdown', 'moving_average',
+           'exponential_moving_average',
            'Transaction', 'Weekday',
            'io', 'strategy']
 
