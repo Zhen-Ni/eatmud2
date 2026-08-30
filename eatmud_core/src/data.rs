@@ -2,7 +2,7 @@ use std::ops::Index;
 
 use chrono::NaiveDate;
 
-use crate::{utility::search_sorted, SIDE};
+use crate::{SIDE, utility::search_sorted};
 
 pub trait DataSlice {
     fn date(&self) -> NaiveDate;
@@ -122,12 +122,12 @@ impl<Ds: DataSlice> Data<Ds> {
 
     pub fn truncate(&mut self, start_date: Option<NaiveDate>, end_date: Option<NaiveDate>) {
         let start_idx = if let Some(date) = start_date {
-            search_sorted(self.data(), &date, |x| x.date(), Some(SIDE::LEFT))
+            search_sorted(self.data(), &date, |x| x.date(), Some(SIDE::Left))
         } else {
             0
         };
         let end_idx = if let Some(date) = end_date {
-            search_sorted(self.data(), &date, |x| x.date(), Some(SIDE::LEFT))
+            search_sorted(self.data(), &date, |x| x.date(), Some(SIDE::Left))
         } else {
             self.len()
         };

@@ -2,11 +2,11 @@ use std::cmp::Ordering;
 pub const DAYS_PER_YEAR: f64 = 360.;
 
 pub enum SIDE {
-    LEFT,
-    RIGHT,
+    Left,
+    Right,
 }
 
-/// Find indice of element in the sorted array by provided key function.
+/// Find indices of element in the sorted array by provided key function.
 ///
 /// Assuming that `a` is sorted by `key`:
 ///
@@ -27,7 +27,7 @@ pub(crate) fn search_sorted<T, U: Ord>(
     if a.is_empty() {
         return 0;
     }
-    let side = side.unwrap_or(SIDE::LEFT);
+    let side = side.unwrap_or(SIDE::Left);
     let (mut lo, mut hi) = (0, a.len() - 1);
     while lo + 1 < hi {
         let mid = (lo + hi) / 2;
@@ -35,8 +35,8 @@ pub(crate) fn search_sorted<T, U: Ord>(
             Ordering::Less => lo = mid,
             Ordering::Greater => hi = mid,
             Ordering::Equal => match side {
-                SIDE::LEFT => hi = mid,
-                SIDE::RIGHT => lo = mid,
+                SIDE::Left => hi = mid,
+                SIDE::Right => lo = mid,
             },
         }
     }
@@ -45,7 +45,7 @@ pub(crate) fn search_sorted<T, U: Ord>(
     // if v in a
     if *v == lv || *v == rv {
         match side {
-            SIDE::LEFT => {
+            SIDE::Left => {
                 if *v == lv {
                     lo
                 } else {
@@ -53,7 +53,7 @@ pub(crate) fn search_sorted<T, U: Ord>(
                 }
             }
 
-            SIDE::RIGHT => {
+            SIDE::Right => {
                 if *v == rv {
                     lo
                 } else {
@@ -72,7 +72,7 @@ pub(crate) fn search_sorted<T, U: Ord>(
     }
 }
 
-/// Calaulate internal rate of return.
+/// Calculate internal rate of return.
 ///
 /// An gradient-based iteration method is used for solving internal
 /// rate of return (IRR). The IRR is represented as:
@@ -87,7 +87,7 @@ pub(crate) fn search_sorted<T, U: Ord>(
 /// ```ignore
 ///     end_value = sum(investment_i * exp(p * t_i))
 /// ```
-/// and its derivation is:
+/// and its derivative is:
 /// ```ignore
 ///     d(end_value) / d(p) = sum(investment_i * t_i * exp(p * t_i))
 /// ```
@@ -219,13 +219,13 @@ mod test {
     fn test_search_sorted() {
         let a = vec![2, 4, 6, 8, 10, 12, 14, 16];
         let idx1 = search_sorted(&a, &9, |&x| x, None);
-        let idx2 = search_sorted(&a, &9, |&x| x, Some(SIDE::RIGHT));
+        let idx2 = search_sorted(&a, &9, |&x| x, Some(SIDE::Right));
         let idx3 = search_sorted(&a, &8, |&x| x, None);
-        let idx4 = search_sorted(&a, &8, |&x| x, Some(SIDE::RIGHT));
+        let idx4 = search_sorted(&a, &8, |&x| x, Some(SIDE::Right));
         let idx5 = search_sorted(&a, &0, |&x| x, None);
-        let idx6 = search_sorted(&a, &0, |&x| x, Some(SIDE::RIGHT));
+        let idx6 = search_sorted(&a, &0, |&x| x, Some(SIDE::Right));
         let idx7 = search_sorted(&a, &20, |&x| x, None);
-        let idx8 = search_sorted(&a, &20, |&x| x, Some(SIDE::RIGHT));
+        let idx8 = search_sorted(&a, &20, |&x| x, Some(SIDE::Right));
         assert!(idx1 == 4);
         assert!(idx2 == 4);
         assert!(idx3 == 3);
