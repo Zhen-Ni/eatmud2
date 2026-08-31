@@ -15,6 +15,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<data::PyStockSlice>()?;
     m.add_class::<data::PyFund>()?;
     m.add_class::<data::PyStock>()?;
+    m.add_class::<data::PyMacdResult>()?;
+    m.add_class::<data::PyBollResult>()?;
     m.add_class::<record::PyConciseRecord>()?;
     m.add_class::<record::PyDetailedRecord>()?;
     m.add_class::<record::PyConciseRecordSlice>()?;

@@ -1,5 +1,6 @@
 mod common;
 pub mod data;
+pub mod indicators;
 pub mod io;
 pub mod prelude;
 pub mod record;
@@ -13,4 +14,6 @@ pub use record::{ConciseRecord, DetailedRecord, get_irrs};
 pub use transaction::{Transaction, TransactionIterator, Weekday};
 
 pub use prelude::*;
-pub use utility::{DAYS_PER_YEAR, SIDE, irr, max_drawdown, moving_average, exponential_moving_average};
+pub use utility::{
+    DAYS_PER_YEAR, SIDE, exponential_moving_average, irr, max_drawdown, moving_average,
+};

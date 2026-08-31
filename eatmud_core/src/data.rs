@@ -113,6 +113,7 @@ impl<Ds: DataSlice> Data<Ds> {
     pub fn data(&self) -> &[Ds] {
         &self.data
     }
+
     pub fn len(&self) -> usize {
         self.data.len()
     }

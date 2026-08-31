@@ -1,3 +1,4 @@
+use eatmud::indicators::{BollResult as CoreBollResult, MacdResult as CoreMacdResult};
 use eatmud::prelude::*;
 use eatmud::{
     Fund as CoreFund, FundSlice as CoreFundSlice, Stock as CoreStock, StockSlice as CoreStockSlice,
@@ -72,6 +73,48 @@ impl PyStockSlice {
     }
 }
 
+#[pyclass(name = "MacdResult")]
+pub struct PyMacdResult {
+    pub inner: CoreMacdResult,
+}
+
+#[pymethods]
+impl PyMacdResult {
+    #[getter]
+    fn dif(&self) -> Vec<f64> {
+        self.inner.dif.clone()
+    }
+    #[getter]
+    fn dea(&self) -> Vec<f64> {
+        self.inner.dea.clone()
+    }
+    #[getter]
+    fn hist(&self) -> Vec<f64> {
+        self.inner.hist.clone()
+    }
+}
+
+#[pyclass(name = "BollResult")]
+pub struct PyBollResult {
+    pub inner: CoreBollResult,
+}
+
+#[pymethods]
+impl PyBollResult {
+    #[getter]
+    fn mid(&self) -> Vec<f64> {
+        self.inner.mid.clone()
+    }
+    #[getter]
+    fn upper(&self) -> Vec<f64> {
+        self.inner.upper.clone()
+    }
+    #[getter]
+    fn lower(&self) -> Vec<f64> {
+        self.inner.lower.clone()
+    }
+}
+
 #[pyclass(name = "Fund")]
 pub struct PyFund {
     pub inner: CoreFund,
@@ -120,6 +163,26 @@ impl PyFund {
         let end = end_date.map(pydate_to_rsdate).transpose()?;
         self.inner.truncate(start, end);
         Ok(())
+    }
+
+    fn ma(&self, period: usize) -> Vec<f64> {
+        self.inner.ma(period)
+    }
+
+    fn ema(&self, period: usize) -> Vec<f64> {
+        self.inner.ema(period)
+    }
+
+    fn macd(&self, short: usize, long: usize, signal: usize) -> PyMacdResult {
+        PyMacdResult {
+            inner: self.inner.macd(short, long, signal),
+        }
+    }
+
+    fn boll(&self, period: usize, multiplier: f64) -> PyBollResult {
+        PyBollResult {
+            inner: self.inner.boll(period, multiplier),
+        }
     }
 
     fn __getitem__(&mut self, index: usize) -> PyResult<PyFundSlice> {
@@ -191,6 +254,26 @@ impl PyStock {
         let end = end_date.map(pydate_to_rsdate).transpose()?;
         self.inner.truncate(start, end);
         Ok(())
+    }
+
+    fn ma(&self, period: usize) -> Vec<f64> {
+        self.inner.ma(period)
+    }
+
+    fn ema(&self, period: usize) -> Vec<f64> {
+        self.inner.ema(period)
+    }
+
+    fn macd(&self, short: usize, long: usize, signal: usize) -> PyMacdResult {
+        PyMacdResult {
+            inner: self.inner.macd(short, long, signal),
+        }
+    }
+
+    fn boll(&self, period: usize, multiplier: f64) -> PyBollResult {
+        PyBollResult {
+            inner: self.inner.boll(period, multiplier),
+        }
     }
 
     fn __getitem__(&mut self, index: usize) -> PyResult<PyStockSlice> {
