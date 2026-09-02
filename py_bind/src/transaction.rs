@@ -1,6 +1,8 @@
 use crate::chrono::PyWeekday;
 use crate::data::PyFund;
-use crate::record::{PyConciseRecord, PyDetailedRecord};
+use crate::record::{
+    ConciseRecordSource, DetailedRecordSource, PyConciseRecord, PyDetailedRecord,
+};
 use crate::common::{map_err, pydate_to_rsdate, rsdate_to_pydate};
 use eatmud::Fund as CoreFund;
 use eatmud::transaction::{
@@ -9,6 +11,7 @@ use eatmud::transaction::{
 use numpy::{PyArray2, ToPyArray};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDate, PySlice, PyTuple};
+use std::ptr::NonNull;
 use std::sync::{Arc, OnceLock};
 
 #[pyclass(name = "Transaction")]
@@ -271,20 +274,32 @@ impl PyTransactionIterator {
         this.borrow()
             .inner
             .cash_record()
-            .map(|r| PyConciseRecord { inner: r.clone() })
+            .map(|r| PyConciseRecord {
+                inner: ConciseRecordSource::Borrowed {
+                    ptr: NonNull::from(r),
+                    parent: this.clone().into_any().unbind(),
+                },
+            })
     }
 
     fn fund_record(this: Bound<'_, Self>, idx: usize) -> Option<PyDetailedRecord> {
         this.borrow()
             .inner
             .fund_record(idx)
-            .map(|r| PyDetailedRecord { inner: r.clone() })
+            .map(|r| PyDetailedRecord {
+                inner: DetailedRecordSource::Borrowed {
+                    ptr: NonNull::from(r),
+                    parent: this.clone().into_any().unbind(),
+                },
+            })
     }
 
     fn record(this: &Bound<'_, Self>) -> Option<PyConciseRecord> {
         this.borrow()
             .inner
             .record()
-            .map(|r| PyConciseRecord { inner: r.clone() })
+            .map(|r| PyConciseRecord {
+                inner: ConciseRecordSource::Owned(r),
+            })
     }
 }
