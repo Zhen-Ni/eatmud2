@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyTuple, PyType};
+use std::ptr::NonNull;
 
 use eatmud::record::{
     ConciseRecordSlice as CoreConciseRecordSlice, DetailedRecordSlice as CoreDetailedRecordSlice,
@@ -106,9 +107,40 @@ impl PyDetailedRecordSlice {
     }
 }
 
+pub enum ConciseRecordSource {
+    Owned(CoreConciseRecord),
+    Borrowed {
+        ptr: NonNull<CoreConciseRecord>,
+        parent: Py<PyAny>,
+    },
+}
+
 #[pyclass(name = "ConciseRecord")]
 pub struct PyConciseRecord {
-    pub inner: CoreConciseRecord,
+    pub inner: ConciseRecordSource,
+}
+
+unsafe impl Send for PyConciseRecord {}
+unsafe impl Sync for PyConciseRecord {}
+
+impl PyConciseRecord {
+    #[inline]
+    pub fn inner(&self) -> &CoreConciseRecord {
+        match &self.inner {
+            ConciseRecordSource::Owned(r) => r,
+            ConciseRecordSource::Borrowed { ptr, .. } => unsafe { ptr.as_ref() },
+        }
+    }
+
+    #[inline]
+    pub fn inner_mut(&mut self) -> PyResult<&mut CoreConciseRecord> {
+        match &mut self.inner {
+            ConciseRecordSource::Owned(r) => Ok(r),
+            _ => Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "Cannot modify a borrowed record",
+            )),
+        }
+    }
 }
 
 #[pymethods]
@@ -116,63 +148,65 @@ impl PyConciseRecord {
     #[new]
     #[pyo3(signature=(name, code, comment=None))]
     fn new(name: &str, code: &str, comment: Option<&str>) -> Self {
-        if let Some(comment) = comment {
-            PyConciseRecord {
-                inner: CoreConciseRecord::new_comment(name, code, comment),
-            }
+        let inner = if let Some(comment) = comment {
+            CoreConciseRecord::new_comment(name, code, comment)
         } else {
-            PyConciseRecord {
-                inner: CoreConciseRecord::new(name, code),
-            }
+            CoreConciseRecord::new(name, code)
+        };
+        PyConciseRecord {
+            inner: ConciseRecordSource::Owned(inner),
         }
     }
 
     #[getter]
     fn name(&self) -> &str {
-        self.inner.name()
+        self.inner().name()
     }
 
     #[getter]
     fn code(&self) -> &str {
-        self.inner.code()
+        self.inner().code()
     }
 
     #[getter]
     fn comment(&self) -> &str {
-        self.inner.comment()
+        self.inner().comment()
     }
 
     fn __len__(&self) -> usize {
-        self.inner.len()
+        self.inner().len()
     }
 
     fn is_empty(&self) -> bool {
-        self.inner.is_empty()
+        self.inner().is_empty()
     }
 
-    fn clear(&mut self) {
-        self.inner.clear();
+    fn clear(&mut self) -> PyResult<()> {
+        self.inner_mut()?.clear();
+        Ok(())
     }
 
     fn __str__(&self) -> String {
-        format!("{}", self.inner)
+        format!("{}", self.inner())
     }
 
     fn __getitem__(&self, idx: isize) -> PyResult<PyConciseRecordSlice> {
-        let len = self.inner.len() as isize;
+        let len = self.inner().len() as isize;
         let actual_idx = if idx < 0 { len + idx } else { idx };
         if actual_idx < 0 || actual_idx >= len {
-            return Err(pyo3::exceptions::PyIndexError::new_err("index out of range"));
+            return Err(pyo3::exceptions::PyIndexError::new_err(
+                "index out of range",
+            ));
         }
         Ok(PyConciseRecordSlice {
-            inner: self.inner[actual_idx as usize].clone(),
+            inner: self.inner()[actual_idx as usize].clone(),
         })
     }
 
     #[classmethod]
     fn from_detailed(_cls: &Bound<'_, PyType>, detailed: &PyDetailedRecord) -> PyConciseRecord {
         PyConciseRecord {
-            inner: CoreConciseRecord::from(&detailed.inner),
+            inner: ConciseRecordSource::Owned(CoreConciseRecord::from(detailed.inner())),
         }
     }
 
@@ -187,7 +221,7 @@ impl PyConciseRecord {
         end_idx: usize,
         x0: f64,
     ) -> PyResult<f64> {
-        Ok(self.inner.irr_direct(
+        Ok(self.inner().irr_direct(
             pydate_to_rsdate(start_date)?,
             pydate_to_rsdate(end_date)?,
             start_value,
@@ -211,7 +245,7 @@ impl PyConciseRecord {
     ) -> PyResult<f64> {
         let start_date = start_date.map(pydate_to_rsdate).transpose()?;
         let end_date = end_date.map(pydate_to_rsdate).transpose()?;
-        Ok(self.inner.irr(
+        Ok(self.inner().irr(
             start_date,
             end_date,
             start_value,
@@ -223,7 +257,7 @@ impl PyConciseRecord {
     }
 
     fn irr_naive(&self) -> f64 {
-        self.inner.irr_naive()
+        self.inner().irr_naive()
     }
 
     fn append(
@@ -234,14 +268,45 @@ impl PyConciseRecord {
         comment: &str,
     ) -> PyResult<()> {
         let d = pydate_to_rsdate(date)?;
-        self.inner.append(d, investment, present_value, comment);
+        self.inner_mut()?.append(d, investment, present_value, comment);
         Ok(())
     }
 }
 
+pub enum DetailedRecordSource {
+    Owned(CoreDetailedRecord),
+    Borrowed {
+        ptr: NonNull<CoreDetailedRecord>,
+        parent: Py<PyAny>,
+    },
+}
+
 #[pyclass(name = "DetailedRecord")]
 pub struct PyDetailedRecord {
-    pub inner: CoreDetailedRecord,
+    pub inner: DetailedRecordSource,
+}
+
+unsafe impl Send for PyDetailedRecord {}
+unsafe impl Sync for PyDetailedRecord {}
+
+impl PyDetailedRecord {
+    #[inline]
+    pub fn inner(&self) -> &CoreDetailedRecord {
+        match &self.inner {
+            DetailedRecordSource::Owned(r) => r,
+            DetailedRecordSource::Borrowed { ptr, .. } => unsafe { ptr.as_ref() },
+        }
+    }
+
+    #[inline]
+    pub fn inner_mut(&mut self) -> PyResult<&mut CoreDetailedRecord> {
+        match &mut self.inner {
+            DetailedRecordSource::Owned(r) => Ok(r),
+            _ => Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "Cannot modify a borrowed record",
+            )),
+        }
+    }
 }
 
 #[pymethods]
@@ -249,56 +314,58 @@ impl PyDetailedRecord {
     #[new]
     #[pyo3(signature=(name, code, comment=None))]
     fn new(name: &str, code: &str, comment: Option<&str>) -> Self {
-        if let Some(comment) = comment {
-            PyDetailedRecord {
-                inner: CoreDetailedRecord::new_comment(name, code, comment),
-            }
+        let inner = if let Some(comment) = comment {
+            CoreDetailedRecord::new_comment(name, code, comment)
         } else {
-            PyDetailedRecord {
-                inner: CoreDetailedRecord::new(name, code),
-            }
+            CoreDetailedRecord::new(name, code)
+        };
+        PyDetailedRecord {
+            inner: DetailedRecordSource::Owned(inner),
         }
     }
 
     #[getter]
     fn name(&self) -> &str {
-        self.inner.name()
+        self.inner().name()
     }
 
     #[getter]
     fn code(&self) -> &str {
-        self.inner.code()
+        self.inner().code()
     }
 
     #[getter]
     fn comment(&self) -> &str {
-        self.inner.comment()
+        self.inner().comment()
     }
 
     fn __len__(&self) -> usize {
-        self.inner.len()
+        self.inner().len()
     }
 
     fn is_empty(&self) -> bool {
-        self.inner.is_empty()
+        self.inner().is_empty()
     }
 
-    fn clear(&mut self) {
-        self.inner.clear();
+    fn clear(&mut self) -> PyResult<()> {
+        self.inner_mut()?.clear();
+        Ok(())
     }
 
     fn __str__(&self) -> String {
-        format!("{}", self.inner)
+        format!("{}", self.inner())
     }
 
     fn __getitem__(&self, idx: isize) -> PyResult<PyDetailedRecordSlice> {
-        let len = self.inner.len() as isize;
+        let len = self.inner().len() as isize;
         let actual_idx = if idx < 0 { len + idx } else { idx };
         if actual_idx < 0 || actual_idx >= len {
-            return Err(pyo3::exceptions::PyIndexError::new_err("index out of range"));
+            return Err(pyo3::exceptions::PyIndexError::new_err(
+                "index out of range",
+            ));
         }
         Ok(PyDetailedRecordSlice {
-            inner: self.inner[actual_idx as usize].clone(),
+            inner: self.inner()[actual_idx as usize].clone(),
         })
     }
 
@@ -313,7 +380,7 @@ impl PyDetailedRecord {
         end_idx: usize,
         x0: f64,
     ) -> PyResult<f64> {
-        Ok(self.inner.irr_direct(
+        Ok(self.inner().irr_direct(
             pydate_to_rsdate(start_date)?,
             pydate_to_rsdate(end_date)?,
             start_value,
@@ -337,7 +404,7 @@ impl PyDetailedRecord {
     ) -> PyResult<f64> {
         let start_date = start_date.map(pydate_to_rsdate).transpose()?;
         let end_date = end_date.map(pydate_to_rsdate).transpose()?;
-        Ok(self.inner.irr(
+        Ok(self.inner().irr(
             start_date,
             end_date,
             start_value,
@@ -349,7 +416,7 @@ impl PyDetailedRecord {
     }
 
     fn irr_naive(&self) -> f64 {
-        self.inner.irr_naive()
+        self.inner().irr_naive()
     }
 
     fn append(
@@ -361,7 +428,7 @@ impl PyDetailedRecord {
         comment: &str,
     ) -> PyResult<()> {
         let d = pydate_to_rsdate(date)?;
-        self.inner.append(d, investment, nav, share, comment);
+        self.inner_mut()?.append(d, investment, nav, share, comment);
         Ok(())
     }
 }
@@ -370,9 +437,9 @@ impl PyDetailedRecord {
 #[pyo3(signature = (record, duration=None))]
 pub fn get_irrs(record: &Bound<'_, PyAny>, duration: Option<f64>) -> PyResult<Vec<f64>> {
     if let Ok(c) = record.extract::<PyRef<PyConciseRecord>>() {
-        Ok(eatmud::record::get_irrs(&c.inner, duration))
+        Ok(eatmud::record::get_irrs(c.inner(), duration))
     } else if let Ok(d) = record.extract::<PyRef<PyDetailedRecord>>() {
-        Ok(eatmud::record::get_irrs(&d.inner, duration))
+        Ok(eatmud::record::get_irrs(d.inner(), duration))
     } else {
         Err(pyo3::exceptions::PyTypeError::new_err(
             "Expected ConciseRecord or DetailedRecord",
@@ -385,16 +452,16 @@ pub fn get_irrs(record: &Bound<'_, PyAny>, duration: Option<f64>) -> PyResult<Ve
 pub fn merge_records(records: &Bound<'_, PyTuple>) -> PyResult<PyConciseRecord> {
     if records.is_empty() {
         return Ok(PyConciseRecord {
-            inner: CoreConciseRecord::new("", ""),
+            inner: ConciseRecordSource::Owned(CoreConciseRecord::new("", "")),
         });
     }
 
     let mut core_records: Vec<CoreConciseRecord> = Vec::new();
     for r in records.iter() {
         if let Ok(c) = r.extract::<PyRef<PyConciseRecord>>() {
-            core_records.push(c.inner.clone());
+            core_records.push(c.inner().clone());
         } else if let Ok(d) = r.extract::<PyRef<PyDetailedRecord>>() {
-            core_records.push(CoreConciseRecord::from(&d.inner));
+            core_records.push(CoreConciseRecord::from(d.inner()));
         } else {
             return Err(pyo3::exceptions::PyTypeError::new_err(
                 "Expected ConciseRecord or DetailedRecord",
@@ -407,6 +474,7 @@ pub fn merge_records(records: &Bound<'_, PyTuple>) -> PyResult<PyConciseRecord> 
         merged = eatmud::merge_records!(&merged, &r);
     }
 
-    Ok(PyConciseRecord { inner: merged })
+    Ok(PyConciseRecord {
+        inner: ConciseRecordSource::Owned(merged),
+    })
 }
-
