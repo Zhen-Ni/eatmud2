@@ -57,39 +57,3 @@ pub fn max_drawdown(prices: Vec<f64>) -> PyResult<(f64, usize, usize)> {
         PyValueError::new_err("Failed to calculate max drawdown: got empty sequence.")
     })
 }
-
-/// Calculate the moving average (MA) of a data sequence.
-///
-/// Parameters
-/// ----------
-/// data : sequence of float
-///     1‑dimensional input data sequence.
-/// period : int
-///     The window size (number of periods) for the moving average.
-///
-/// Returns
-/// -------
-/// sequence of float
-///     The simple moving average sequence.
-#[pyfunction]
-pub fn moving_average(data: Vec<f64>, period: usize) -> Vec<f64> {
-    eatmud::moving_average(&data, period)
-}
-
-/// Calculate the exponential moving average (EMA) of a data sequence.
-///
-/// Parameters
-/// ----------
-/// data : sequence of float
-///     1‑dimensional input data sequence.
-/// period : int
-///     The number of periods for the exponential moving average.
-///
-/// Returns
-/// -------
-/// sequence of float
-///     The exponential moving average sequence.
-#[pyfunction]
-pub fn exponential_moving_average(data: Vec<f64>, period: usize) -> Vec<f64> {
-    eatmud::exponential_moving_average(&data, period)
-}

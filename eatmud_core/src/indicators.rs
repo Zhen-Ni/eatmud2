@@ -1,7 +1,4 @@
-use crate::{
-    data::{Data, DataSlice},
-    exponential_moving_average, moving_average,
-};
+use crate::data::{Data, DataSlice};
 
 /// The result struct for MACD (Moving Average Convergence Divergence) calculations.
 ///
@@ -83,46 +80,66 @@ pub trait Indicators {
 
 impl<Ds: DataSlice> Indicators for Data<Ds> {
     fn ma(&self, period: usize) -> Vec<f64> {
-        let data = self.data().iter().map(|s| s.value()).collect::<Vec<_>>();
-        moving_average(&data, period)
+        moving_average(self.data(), period, |s| s.value())
     }
 
     fn ema(&self, period: usize) -> Vec<f64> {
-        let data = self.data().iter().map(|s| s.value()).collect::<Vec<_>>();
-        exponential_moving_average(&data, period)
+        exponential_moving_average(self.data(), period, |s| s.value())
     }
 
     fn macd(&self, short: usize, long: usize, signal: usize) -> MacdResult {
-        let data = self.data().iter().map(|s| s.value()).collect::<Vec<_>>();
-        let ema_short = exponential_moving_average(&data, short);
-        let ema_long = exponential_moving_average(&data, long);
+        let ema_short = exponential_moving_average(self.data(), short, |s| s.value());
+        let ema_long = exponential_moving_average(self.data(), long, |s| s.value());
         let dif = ema_short
             .into_iter()
             .zip(ema_long)
             .map(|(s, l)| s - l)
             .collect::<Vec<_>>();
-        let dea = exponential_moving_average(&dif, signal);
+        let dea = exponential_moving_average(&dif, signal, |&x| x);
         let hist = dif.iter().zip(&dea).map(|(&x, &y)| 2. * (x - y)).collect();
         MacdResult { dif, dea, hist }
     }
 
     fn boll(&self, period: usize, multiplier: f64) -> BollResult {
-        let data = self.data().iter().map(|s| s.value()).collect::<Vec<_>>();
-        let mid = moving_average(&data, period);
+        let data = self.data();
+        let mut mid = Vec::with_capacity(data.len());
         let mut std = Vec::with_capacity(data.len());
 
-        for i in 0..data.len() {
-            let window_len = usize::min(i + 1, period);
-            let start_idx = i + 1 - window_len;
-            let mean = mid[i];
-            let sum_sq = data[start_idx..=i]
-                .iter()
-                .map(|&x| {
-                    let diff = x - mean;
-                    diff * diff
-                })
-                .sum::<f64>();
-            std.push((sum_sq / window_len as f64).sqrt());
+        let mut mean = 0.0;
+        let mut m2 = 0.0;
+
+        for (i, slice) in data.iter().enumerate() {
+            let x_new = slice.value();
+            let window_len = if i < period { i + 1 } else { period };
+
+            if i < period {
+                // Standard Welford for expanding window
+                let delta = x_new - mean;
+                mean += delta / window_len as f64;
+                let delta2 = x_new - mean;
+                m2 += delta * delta2;
+            } else {
+                // Sliding window incremental update
+                let x_old = data[i - period].value();
+                let n = window_len as f64;
+
+                let mean_old = mean;
+                let mean_new = mean_old + (x_new - x_old) / n;
+
+                // M2_new = M2_old + n * (mean_old - mean_new)^2 - (x_old - mean_new)^2 + (x_new - mean_new)^2
+                m2 = m2 + n * (mean_old - mean_new).powi(2) - (x_old - mean_new).powi(2)
+                    + (x_new - mean_new).powi(2);
+
+                if m2 < 0.0 {
+                    m2 = 0.0; // Guard against floating point precision errors
+                }
+
+                mean = mean_new;
+            }
+
+            let variance = m2 / window_len as f64;
+            mid.push(mean);
+            std.push(variance.sqrt());
         }
 
         let upper = mid
@@ -138,6 +155,38 @@ impl<Ds: DataSlice> Indicators for Data<Ds> {
 
         BollResult { mid, upper, lower }
     }
+}
+
+/// Computes the moving average (MA) of a data sequence.
+fn moving_average<T, F: Fn(&T) -> f64>(data: &[T], period: usize, get_val: F) -> Vec<f64> {
+    let mut sum = 0.0;
+    let mut result = Vec::with_capacity(data.len());
+    for i in 0..data.len() {
+        sum += get_val(&data[i]);
+        if i >= period {
+            sum -= get_val(&data[i - period]);
+        }
+        result.push(sum / period.min(i + 1) as f64);
+    }
+    result
+}
+
+/// Computes the exponential moving average (EMA) of a data sequence.
+fn exponential_moving_average<T, F: Fn(&T) -> f64>(
+    data: &[T],
+    period: usize,
+    get_val: F,
+) -> Vec<f64> {
+    let alpha = 2.0 / (period as f64 + 1.0);
+    let mut result = Vec::with_capacity(data.len());
+    let mut prev = get_val(&data[0]);
+    for item in data.iter() {
+        let val = get_val(item);
+        let current = alpha * val + (1.0 - alpha) * prev;
+        result.push(current);
+        prev = current;
+    }
+    result
 }
 
 #[cfg(test)]
