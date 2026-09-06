@@ -333,7 +333,7 @@ impl PyHistoryView {
 
         Ok(PyHistoryView {
             trans: trans_ptr,
-            ref_data: ref_data,
+            ref_data,
         })
     }
 

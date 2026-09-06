@@ -232,6 +232,7 @@ impl PyConciseRecord {
         ))
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (start_date=None, end_date=None, start_value=None, end_value=None, start_index=None, end_index=None, x0=None))]
     fn irr(
         &self,
@@ -392,6 +393,7 @@ impl PyDetailedRecord {
         ))
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (start_date=None, end_date=None, start_value=None, end_value=None, start_index=None, end_index=None, x0=None))]
     fn irr(
         &self,

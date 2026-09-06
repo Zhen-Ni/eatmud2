@@ -275,6 +275,7 @@ impl<Rs: RecordSlice> Record<Rs> {
     /// * `end_idx` - The end index for the range of records used for calculation.
     ///   If None is given, it will be estimated automatically by searching the end date in the recrods.
     /// * `x0` - The initial value for iteration. Default to 0.0.
+    #[allow(clippy::too_many_arguments)]
     pub fn irr(
         &self,
         start_date: Option<NaiveDate>,
@@ -566,10 +567,18 @@ where
             result.push(f64::NAN);
             continue;
         }
-        let end_date = Some(rs.date());
-        let start_date =
-            duration.map(|d| end_date.unwrap() - Duration::days((d * DAYS_PER_YEAR) as i64));
-        let r = record.irr(start_date, end_date, None, None, None, Some(i), Some(x0));
+        let end_date = rs.date();
+        let wrapped_start_date =
+            duration.map(|d| end_date - Duration::days((d * DAYS_PER_YEAR) as i64));
+        let r = record.irr(
+            wrapped_start_date,
+            Some(end_date),
+            None,
+            None,
+            None,
+            Some(i),
+            Some(x0),
+        );
         result.push(r);
     }
     result
