@@ -16,6 +16,17 @@ impl std::fmt::Display for TransactionError {
 
 impl std::error::Error for TransactionError {}
 
+#[derive(Debug)]
+pub struct HistoryViewError(&'static str);
+
+impl std::fmt::Display for HistoryViewError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        writeln!(f, "HistoryView Error: {}", self.0)
+    }
+}
+
+impl std::error::Error for HistoryViewError {}
+
 pub struct Transaction {
     names: Vec<String>,
     codes: Vec<String>,
@@ -145,7 +156,7 @@ impl IterBuffer {
     }
 }
 
-/// Current transation status.
+/// Current transaction status.
 ///
 /// This struct is hold by TransactionIterator and has two fields:
 /// cash and shares. `index` is the current index of the transaction
@@ -243,6 +254,10 @@ impl<'a> TransactionIterator<'a> {
         }
     }
 
+    pub fn index(&self) -> usize {
+        self.index
+    }
+    
     #[inline]
     fn is_finished(&self) -> bool {
         self.index == self.ndays()
@@ -349,11 +364,7 @@ impl<'a> TransactionIterator<'a> {
         Ok(())
     }
 
-    pub fn inflow_comment(
-        &mut self,
-        amount: f64,
-        comment: &str,
-    ) -> Result<(), TransactionError> {
+    pub fn inflow_comment(&mut self, amount: f64, comment: &str) -> Result<(), TransactionError> {
         self.inflow(amount)?;
         if let Some(ref mut record) = self.iter_record
             && !record.cash_comment_buffer.is_empty()
@@ -398,12 +409,7 @@ impl<'a> TransactionIterator<'a> {
         Ok(())
     }
 
-    pub fn sell(
-        &mut self,
-        fundid: usize,
-        share: f64,
-        fee: f64,
-    ) -> Result<(), TransactionError> {
+    pub fn sell(&mut self, fundid: usize, share: f64, fee: f64) -> Result<(), TransactionError> {
         self.assert_not_finished()?;
         let income = share * self.transaction.navs[[self.index, fundid]] - fee;
         self.iter_buffer.cash += income;
@@ -672,6 +678,58 @@ impl<'a> TransactionIterator<'a> {
     }
 }
 
+pub struct HistoryView<'a, T> {
+    transaction: &'a Transaction,
+    ref_data: Array1<T>,
+}
+
+impl<'a, T> HistoryView<'a, T> {
+    pub fn from_vec(
+        trans: &'a Transaction,
+        ref_data: Vec<T>,
+    ) -> Result<Self, HistoryViewError> {
+        if trans.date.len() == ref_data.len() {
+            Ok(HistoryView {
+                transaction: trans,
+                ref_data: Array1::from_vec(ref_data),
+            })
+        } else {
+            Err(HistoryViewError(
+                "Size of ref_data must match the length of trans",
+            ))
+        }
+    }
+
+    pub fn from_arr(
+        trans: &'a Transaction,
+        ref_data: Array1<T>,
+    ) -> Result<Self, HistoryViewError> {
+        if trans.date.len() == ref_data.len() {
+            Ok(HistoryView {
+                transaction: trans,
+                ref_data,
+            })
+        } else {
+            Err(HistoryViewError(
+                "Size of ref_data must match the length of trans",
+            ))
+        }
+    }
+
+    pub fn get(
+        &'a self,
+        it: &TransactionIterator,
+    ) -> Result<ArrayView1<'a, T>, HistoryViewError> {
+        if std::ptr::eq(it.transaction, self.transaction) {
+            Ok(self.ref_data.slice(s![..it.index]))
+        } else {
+            Err(HistoryViewError(
+                "Given iterator is not from the same transaction instance it created from",
+            ))
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -808,5 +866,49 @@ mod test {
             it.buy(1, 100., 0.1).unwrap();
         }
         it.sell(1, it.share(1), 0.2).unwrap();
+    }
+
+    /// Test `HistoryView`.
+    #[test]
+    fn test_binded_ref() {
+        use crate::io::read_tdx;
+        let hs300 = Fund::from(&read_tdx("../tdx/test-hs300.txt").unwrap());
+        let gz2000 = Fund::from(&read_tdx("../tdx/test-gz2000.txt").unwrap());
+        let start_date = NaiveDate::parse_from_str("2024-01-01", "%Y-%m-%d").unwrap();
+        let end_date = NaiveDate::parse_from_str("2024-01-20", "%Y-%m-%d").unwrap();
+        let t = Transaction::new(&[&hs300, &gz2000], Some(start_date), Some(end_date));
+
+        let ref_data: Vec<f64> = (0..t.ndays()).map(|x| x as f64).collect();
+        let view = HistoryView::from_vec(&t, ref_data).unwrap();
+
+        // Test size mismatch error
+        let bad_data = vec![1.0; t.ndays() - 1];
+        assert!(HistoryView::from_vec(&t, bad_data).is_err());
+
+        let mut it = t.iter(false, false);
+
+        // Test from_arr
+        let arr_data = Array1::from_vec((0..t.ndays()).map(|x| x as f64).collect());
+        let view_arr = HistoryView::from_arr(&t, arr_data).unwrap();
+        assert_eq!(view_arr.get(&it).unwrap().len(), 0);
+
+        // Test from_arr size mismatch error
+        let bad_arr_data = Array1::from_vec(vec![1.0; t.ndays() - 1]);
+        assert!(HistoryView::from_arr(&t, bad_arr_data).is_err());
+
+        // Test initial get: should be empty
+        let v = view.get(&it).unwrap();
+        assert_eq!(v.len(), 0);
+
+        // Test after stepping: prevents lookahead bias
+        it.next_day();
+        let v = view.get(&it).unwrap();
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0], 0.0);
+
+        // Test wrong transaction iterator
+        let t2 = Transaction::new(&[&hs300, &gz2000], Some(start_date), Some(end_date));
+        let it2 = t2.iter(false, false);
+        assert!(view.get(&it2).is_err());
     }
 }

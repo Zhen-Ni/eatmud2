@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import unittest
+import numpy as np
+
 import eatmud
 
 
@@ -108,6 +110,49 @@ class TestTransaction(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             it.sell(1, it.share(1), 0.2)
         self.assertTrue(context.exception)
+
+    def test_historyview(self):
+        """Test `HistoryView`."""
+        hs300 = self.hs300
+        gz2000 = self.gz2000
+        start_date = eatmud.Date(2024, 1, 1)
+        end_date = eatmud.Date(2024, 1, 20)
+        t = eatmud.Transaction([hs300, gz2000], start_date, end_date)
+
+        ndays = t.navs().shape[0]
+        ref_data = list(range(ndays))
+        view = eatmud.HistoryView.from_vec(t, ref_data)
+
+        # Test size mismatch error
+        with self.assertRaises(Exception):
+            eatmud.HistoryView.from_vec(t, [1.0] * (ndays - 1))
+
+        it = t.iter()
+
+        # Test from_arr
+        arr_data = np.array(ref_data, dtype=float)
+        view_arr = eatmud.HistoryView.from_arr(t, arr_data)
+        self.assertEqual(len(view_arr.get(it)), 0)
+
+        # Test from_arr size mismatch error
+        with self.assertRaises(Exception):
+            eatmud.HistoryView.from_arr(t, [1.0] * (ndays - 1))
+
+        # Test initial get: should be empty
+        v = view.get(it)
+        self.assertEqual(len(v), 0)
+
+        # Test after stepping: prevents lookahead bias
+        it.next_day()
+        v = view.get(it)
+        self.assertEqual(len(v), 1)
+        self.assertEqual(v[0], 0.0)
+
+        # Test wrong transaction iterator
+        t2 = eatmud.Transaction([hs300, gz2000], start_date, end_date)
+        it2 = t2.iter()
+        with self.assertRaises(Exception):
+            view.get(it2)
 
 
 if __name__ == '__main__':

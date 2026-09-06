@@ -15,7 +15,7 @@ pub fn aip_monthly(
     amounts: Vec<f64>,
     fees: Vec<f64>,
 ) -> PyResult<()> {
-    core_aip_monthly(&mut it.inner, day, &amounts, &fees).map_err(map_err)
+    core_aip_monthly(it.inner_mut(), day, &amounts, &fees).map_err(map_err)
 }
 
 #[pyclass(name = "KellyIndicator")]
@@ -57,7 +57,7 @@ pub fn kelly_hint(
     risk_bound: f64,
 ) -> PyResult<PyKellyIndicator> {
     core_kelly_hint(
-        &it.inner,
+        it.inner(),
         fund_index,
         weekday.inner,
         n,
@@ -76,5 +76,5 @@ pub fn kelly_weekly(
     inflations: Vec<f64>,
     risk_bounds: Vec<f64>,
 ) -> PyResult<()> {
-    core_kelly_weekly(&mut it.inner, weekday.inner, &ns, &inflations, &risk_bounds).map_err(map_err)
+    core_kelly_weekly(it.inner_mut(), weekday.inner, &ns, &inflations, &risk_bounds).map_err(map_err)
 }

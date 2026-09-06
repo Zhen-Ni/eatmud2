@@ -6,7 +6,7 @@ from . import _core
 from ._core import FundSlice, StockSlice, Fund, Stock
 from ._core import ConciseRecordSlice, DetailedRecordSlice, \
     ConciseRecord, DetailedRecord, merge_records, get_irrs
-from ._core import Transaction, Weekday
+from ._core import Transaction, Weekday, HistoryView
 from ._core import irr, max_drawdown
 from . import io
 from . import strategy
@@ -16,7 +16,7 @@ __all__ = ['_core',
            'Fund', 'Stock',
            'ConciseRecord', 'DetailedRecord', 'merge_records', 'get_irrs',
            'irr', 'max_drawdown',
-           'Transaction', 'Weekday',
+           'Transaction', 'Weekday', 'HistoryView',
            'io', 'strategy']
 
 Date = datetime.date

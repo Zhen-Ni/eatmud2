@@ -23,6 +23,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<record::PyDetailedRecordSlice>()?;
     m.add_class::<transaction::PyTransaction>()?;
     m.add_class::<transaction::PyTransactionIterator>()?;
+    m.add_class::<transaction::PyHistoryView>()?;
     m.add_class::<chrono::PyWeekday>()?;
 
     m.add_function(pyo3::wrap_pyfunction!(record::get_irrs, m)?)?;

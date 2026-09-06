@@ -1,16 +1,15 @@
 use crate::chrono::PyWeekday;
-use crate::data::PyFund;
-use crate::record::{
-    ConciseRecordSource, DetailedRecordSource, PyConciseRecord, PyDetailedRecord,
-};
 use crate::common::{map_err, pydate_to_rsdate, rsdate_to_pydate};
+use crate::data::PyFund;
+use crate::record::{ConciseRecordSource, DetailedRecordSource, PyConciseRecord, PyDetailedRecord};
 use eatmud::Fund as CoreFund;
 use eatmud::transaction::{
     Transaction as CoreTransaction, TransactionIterator as CoreTransactionIterator,
 };
-use numpy::{PyArray2, ToPyArray};
+use numpy::{PyArray1, PyArray2, ToPyArray};
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyDate, PySlice, PyTuple};
+use pyo3::types::{PyAny, PyAnyMethods, PyDate, PySlice, PyTuple};
 use std::ptr::NonNull;
 use std::sync::{Arc, OnceLock};
 
@@ -116,45 +115,54 @@ impl PyTransaction {
 #[pyclass(name = "TransactionIterator")]
 pub struct PyTransactionIterator {
     trans: Arc<CoreTransaction>,
-    pub(crate) inner: CoreTransactionIterator<'static>,
+    inner: CoreTransactionIterator<'static>,
     navs_cache: Arc<OnceLock<Py<PyArray2<f64>>>>,
+}
+
+impl PyTransactionIterator {
+    pub fn inner(&self) -> &CoreTransactionIterator<'static> {
+        &self.inner
+    }
+    pub fn inner_mut(&mut self) -> &mut CoreTransactionIterator<'static> {
+        &mut self.inner
+    }
 }
 
 #[pymethods]
 impl PyTransactionIterator {
     #[getter]
     fn nfunds(&self) -> usize {
-        self.inner.nfunds()
+        self.inner().nfunds()
     }
 
     #[getter]
     fn ndays(&self) -> usize {
-        self.inner.ndays()
+        self.inner().ndays()
     }
 
     fn today<'py>(this: &Bound<'py, Self>) -> PyResult<Bound<'py, PyDate>> {
-        rsdate_to_pydate(this.py(), this.borrow().inner.today())
+        rsdate_to_pydate(this.py(), this.borrow().inner().today())
     }
 
     fn cash(&self) -> f64 {
-        self.inner.cash()
+        self.inner().cash()
     }
 
     fn share(&self, idx: usize) -> f64 {
-        self.inner.share(idx)
+        self.inner().share(idx)
     }
 
     fn fund_asset(&self, idx: usize) -> f64 {
-        self.inner.fund_asset(idx)
+        self.inner().fund_asset(idx)
     }
 
     fn asset(&self) -> f64 {
-        self.inner.asset()
+        self.inner().asset()
     }
 
     fn dates<'py>(this: &Bound<'py, Self>) -> PyResult<Vec<Bound<'py, PyDate>>> {
         this.borrow()
-            .inner
+            .inner()
             .dates()
             .iter()
             .map(|d| rsdate_to_pydate(this.py(), *d))
@@ -170,7 +178,7 @@ impl PyTransactionIterator {
             .get_or_init(|| this_ref.trans.navs().to_pyarray(py).unbind());
         let full_arr_bound = arr_ptr.bind(py).clone();
 
-        let idx = this_ref.inner.dates().len() as isize;
+        let idx = this_ref.inner().dates().len() as isize;
 
         let py_slice = py.get_type::<PySlice>();
         let index = py_slice.call1((idx,))?;
@@ -182,26 +190,26 @@ impl PyTransactionIterator {
     }
 
     fn cash_log(&self) -> Option<Vec<f64>> {
-        self.inner.cash_log().map(|v| v.to_vec())
+        self.inner().cash_log().map(|v| v.to_vec())
     }
 
     fn share_log(&self, idx: usize) -> Option<Vec<f64>> {
-        self.inner.share_log(idx).map(|v| v.to_vec())
+        self.inner().share_log(idx).map(|v| v.to_vec())
     }
 
     fn fund_asset_log(&self, idx: usize) -> Option<Vec<f64>> {
-        self.inner.fund_asset_log(idx).map(|v| v.to_vec())
+        self.inner().fund_asset_log(idx).map(|v| v.to_vec())
     }
 
     fn asset_log(&self) -> Option<Vec<f64>> {
-        self.inner.asset_log().map(|v| v.to_vec())
+        self.inner().asset_log().map(|v| v.to_vec())
     }
 
     #[pyo3(signature = (amount, comment=None))]
     fn inflow(&mut self, amount: f64, comment: Option<&str>) -> PyResult<()> {
         match comment {
-            Some(c) => self.inner.inflow_comment(amount, c),
-            None => self.inner.inflow(amount),
+            Some(c) => self.inner_mut().inflow_comment(amount, c),
+            None => self.inner_mut().inflow(amount),
         }
         .map(|_| ())
         .map_err(map_err)
@@ -216,8 +224,8 @@ impl PyTransactionIterator {
         comment: Option<&str>,
     ) -> PyResult<()> {
         match comment {
-            Some(c) => self.inner.buy_comment(fundid, investment, fee, c),
-            None => self.inner.buy(fundid, investment, fee),
+            Some(c) => self.inner_mut().buy_comment(fundid, investment, fee, c),
+            None => self.inner_mut().buy(fundid, investment, fee),
         }
         .map(|_| ())
         .map_err(map_err)
@@ -226,8 +234,8 @@ impl PyTransactionIterator {
     #[pyo3(signature = (fundid, share, fee=0.0, comment=None))]
     fn sell(&mut self, fundid: usize, share: f64, fee: f64, comment: Option<&str>) -> PyResult<()> {
         match comment {
-            Some(c) => self.inner.sell_comment(fundid, share, fee, c),
-            None => self.inner.sell(fundid, share, fee),
+            Some(c) => self.inner_mut().sell_comment(fundid, share, fee, c),
+            None => self.inner_mut().sell(fundid, share, fee),
         }
         .map(|_| ())
         .map_err(map_err)
@@ -243,36 +251,39 @@ impl PyTransactionIterator {
         perfect_position: bool,
     ) -> PyResult<()> {
         match comment {
-            Some(c) => self
-                .inner
-                .position_comment(fundid, position, fee, perfect_position, c),
-            None => self.inner.position(fundid, position, fee, perfect_position),
+            Some(c) => {
+                self.inner_mut()
+                    .position_comment(fundid, position, fee, perfect_position, c)
+            }
+            None => self
+                .inner_mut()
+                .position(fundid, position, fee, perfect_position),
         }
         .map(|_| ())
         .map_err(map_err)
     }
 
     fn next_day(&mut self) -> bool {
-        self.inner.next_day().is_some()
+        self.inner_mut().next_day().is_some()
     }
 
     fn next_weekday(&mut self, weekday: Option<PyWeekday>) -> bool {
         let w = weekday.map(|w| w.inner);
-        self.inner.next_weekday(w).is_some()
+        self.inner_mut().next_weekday(w).is_some()
     }
 
     fn goto(&mut self, date: &Bound<'_, PyAny>) -> PyResult<bool> {
         let naive = pydate_to_rsdate(date)?;
-        Ok(self.inner.goto(naive).is_some())
+        Ok(self.inner_mut().goto(naive).is_some())
     }
 
     fn next_month(&mut self, day: Option<u32>) -> bool {
-        self.inner.next_month(day).is_some()
+        self.inner_mut().next_month(day).is_some()
     }
 
     fn cash_record(this: &Bound<'_, Self>) -> Option<PyConciseRecord> {
         this.borrow()
-            .inner
+            .inner()
             .cash_record()
             .map(|r| PyConciseRecord {
                 inner: ConciseRecordSource::Borrowed {
@@ -284,7 +295,7 @@ impl PyTransactionIterator {
 
     fn fund_record(this: Bound<'_, Self>, idx: usize) -> Option<PyDetailedRecord> {
         this.borrow()
-            .inner
+            .inner()
             .fund_record(idx)
             .map(|r| PyDetailedRecord {
                 inner: DetailedRecordSource::Borrowed {
@@ -295,11 +306,72 @@ impl PyTransactionIterator {
     }
 
     fn record(this: &Bound<'_, Self>) -> Option<PyConciseRecord> {
-        this.borrow()
-            .inner
-            .record()
-            .map(|r| PyConciseRecord {
-                inner: ConciseRecordSource::Owned(r),
-            })
+        this.borrow().inner().record().map(|r| PyConciseRecord {
+            inner: ConciseRecordSource::Owned(r),
+        })
+    }
+}
+
+#[pyclass(name = "HistoryView")]
+pub struct PyHistoryView {
+    trans: Arc<CoreTransaction>,
+    ref_data: Py<PyArray1<f64>>,
+}
+
+#[pymethods]
+impl PyHistoryView {
+    #[staticmethod]
+    fn from_vec<'py>(trans: &Bound<'py, PyTransaction>, ref_data: Vec<f64>) -> PyResult<Self> {
+        let trans_ptr = trans.borrow().inner.clone();
+        if trans_ptr.date().len() != ref_data.len() {
+            return Err(PyValueError::new_err(
+                "Size of ref_data must match the length of trans",
+            ));
+        }
+
+        let ref_data = PyArray1::from_vec(trans.py(), ref_data).unbind();
+
+        Ok(PyHistoryView {
+            trans: trans_ptr,
+            ref_data: ref_data,
+        })
+    }
+
+    #[staticmethod]
+    fn from_arr<'py>(
+        trans: &Bound<'py, PyTransaction>,
+        ref_data: &Bound<'py, PyArray1<f64>>,
+    ) -> PyResult<Self> {
+        let trans_ptr = trans.borrow().inner.clone();
+        if trans_ptr.date().len() != ref_data.len()? {
+            return Err(PyValueError::new_err(
+                "Size of ref_data must match the length of trans",
+            ));
+        }
+
+        Ok(PyHistoryView {
+            trans: trans_ptr,
+            ref_data: ref_data.clone().unbind(),
+        })
+    }
+
+    pub fn get<'py>(
+        this: &Bound<'py, Self>,
+        it: &PyTransactionIterator,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        if Arc::ptr_eq(&this.borrow().trans, &it.trans) {
+            let py = this.py();
+            let this_ref = this.borrow();
+            let idx = it.inner().index();
+            let full_data = this_ref.ref_data.bind(py);
+            let slice = PySlice::new(py, 0, idx as isize, 1);
+            let sliced = full_data.get_item(slice)?;
+            let sliced_arr = sliced.cast::<PyArray1<f64>>()?;
+            Ok(sliced_arr.to_owned())
+        } else {
+            Err(PyRuntimeError::new_err(
+                "Given iterator is not from the same transaction instance it created from",
+            ))
+        }
     }
 }

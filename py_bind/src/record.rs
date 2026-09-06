@@ -268,7 +268,8 @@ impl PyConciseRecord {
         comment: &str,
     ) -> PyResult<()> {
         let d = pydate_to_rsdate(date)?;
-        self.inner_mut()?.append(d, investment, present_value, comment);
+        self.inner_mut()?
+            .append(d, investment, present_value, comment);
         Ok(())
     }
 }
