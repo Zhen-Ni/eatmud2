@@ -257,7 +257,7 @@ impl<'a> TransactionIterator<'a> {
     pub fn index(&self) -> usize {
         self.index
     }
-    
+
     #[inline]
     fn is_finished(&self) -> bool {
         self.index == self.ndays()
@@ -562,7 +562,11 @@ impl<'a> TransactionIterator<'a> {
         }
         if n == 0 {
             warning!(
-                "Step to the same date is would refresh iter_buffer, which affects self.present_*."
+                "{}",
+                format!(
+                    "Step to the same date ({:?}) would refresh iter_buffer, which affects self.present_*.",
+                    self.today()
+                )
             )
         }
         self.flush();
@@ -684,10 +688,7 @@ pub struct HistoryView<'a, T> {
 }
 
 impl<'a, T> HistoryView<'a, T> {
-    pub fn from_vec(
-        trans: &'a Transaction,
-        ref_data: Vec<T>,
-    ) -> Result<Self, HistoryViewError> {
+    pub fn from_vec(trans: &'a Transaction, ref_data: Vec<T>) -> Result<Self, HistoryViewError> {
         if trans.date.len() == ref_data.len() {
             Ok(HistoryView {
                 transaction: trans,
@@ -700,10 +701,7 @@ impl<'a, T> HistoryView<'a, T> {
         }
     }
 
-    pub fn from_arr(
-        trans: &'a Transaction,
-        ref_data: Array1<T>,
-    ) -> Result<Self, HistoryViewError> {
+    pub fn from_arr(trans: &'a Transaction, ref_data: Array1<T>) -> Result<Self, HistoryViewError> {
         if trans.date.len() == ref_data.len() {
             Ok(HistoryView {
                 transaction: trans,
@@ -716,10 +714,7 @@ impl<'a, T> HistoryView<'a, T> {
         }
     }
 
-    pub fn get(
-        &'a self,
-        it: &TransactionIterator,
-    ) -> Result<ArrayView1<'a, T>, HistoryViewError> {
+    pub fn get(&'a self, it: &TransactionIterator) -> Result<ArrayView1<'a, T>, HistoryViewError> {
         if std::ptr::eq(it.transaction, self.transaction) {
             Ok(self.ref_data.slice(s![..it.index]))
         } else {
