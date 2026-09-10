@@ -148,6 +148,11 @@ class TestTransaction(unittest.TestCase):
         self.assertEqual(len(v), 1)
         self.assertEqual(v[0], 0.0)
 
+        # Test read-only
+        v = view.get(it)
+        with self.assertRaises(Exception):
+            v[0] = 0.0
+
         # Test wrong transaction iterator
         t2 = eatmud.Transaction([hs300, gz2000], start_date, end_date)
         it2 = t2.iter()

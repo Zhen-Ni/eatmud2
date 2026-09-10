@@ -2,21 +2,19 @@ use crate::chrono::PyWeekday;
 use crate::common::{map_err, pydate_to_rsdate, rsdate_to_pydate};
 use crate::data::PyFund;
 use crate::record::{ConciseRecordSource, DetailedRecordSource, PyConciseRecord, PyDetailedRecord};
-use eatmud::Fund as CoreFund;
 use eatmud::transaction::{
     Transaction as CoreTransaction, TransactionIterator as CoreTransactionIterator,
 };
-use numpy::{PyArray1, PyArray2, ToPyArray};
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use eatmud::{Fund as CoreFund, HistoryView as CoreHistoryView};
+use numpy::{PyArray1, PyArray2, PyArrayMethods};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyAnyMethods, PyDate, PySlice, PyTuple};
+use pyo3::types::{PyAny, PyDate};
 use std::ptr::NonNull;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 #[pyclass(name = "Transaction")]
 pub struct PyTransaction {
     pub inner: Arc<CoreTransaction>,
-    navs_cache: Arc<OnceLock<Py<PyArray2<f64>>>>,
 }
 
 #[pymethods]
@@ -35,7 +33,6 @@ impl PyTransaction {
         let core_trans = CoreTransaction::new(&funds_refs, start, end);
         Ok(PyTransaction {
             inner: Arc::new(core_trans),
-            navs_cache: Arc::new(OnceLock::new()),
         })
     }
 
@@ -46,7 +43,6 @@ impl PyTransaction {
         let core_trans = CoreTransaction::from_funds(&funds_refs);
         PyTransaction {
             inner: Arc::new(core_trans),
-            navs_cache: Arc::new(OnceLock::new()),
         }
     }
 
@@ -89,34 +85,33 @@ impl PyTransaction {
             .collect()
     }
 
-    fn navs<'py>(this: &Bound<'py, Self>) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        let py = this.py();
-        let this_ref = this.borrow();
-        let arr = this_ref
-            .navs_cache
-            .get_or_init(|| this_ref.inner.navs().to_pyarray(py).unbind());
-        Ok(arr.bind(py).clone())
+    fn navs<'py>(this: &Bound<'py, Self>) -> Bound<'py, PyArray2<f64>> {
+        let this_ref = &*this.borrow();
+        let core_array = this_ref.inner.navs();
+        let container = this.clone().into_any();
+        let pyarr = unsafe { PyArray2::borrow_from_array(core_array, container) };
+        let _ro = pyarr.readwrite().make_nonwriteable();
+        pyarr
     }
 
     #[pyo3(signature = (save_log=true, save_record=true))]
-    fn iter(&self, save_log: bool, save_record: bool) -> PyResult<PyTransactionIterator> {
+    fn iter(&self, save_log: bool, save_record: bool) -> PyTransactionIterator {
         // Lifetime Hack: Cast the reference to 'static, because Arc guarantees the data stays alive
         let trans_ref: &'static CoreTransaction =
             unsafe { &*(&*self.inner as *const CoreTransaction) };
         let core_iter = trans_ref.iter(save_log, save_record);
-        Ok(PyTransactionIterator {
-            trans: self.inner.clone(),
+        PyTransactionIterator {
+            _trans: self.inner.clone(),
             inner: core_iter,
-            navs_cache: self.navs_cache.clone(),
-        })
+        }
     }
 }
 
 #[pyclass(name = "TransactionIterator")]
 pub struct PyTransactionIterator {
-    trans: Arc<CoreTransaction>,
+    // Must reserve _trans here due to the lifetime hack.
+    _trans: Arc<CoreTransaction>,
     inner: CoreTransactionIterator<'static>,
-    navs_cache: Arc<OnceLock<Py<PyArray2<f64>>>>,
 }
 
 impl PyTransactionIterator {
@@ -169,24 +164,13 @@ impl PyTransactionIterator {
             .collect()
     }
 
-    fn navs<'py>(this: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
-        let py = this.py();
-        let this_ref = this.borrow();
-
-        let arr_ptr = this_ref
-            .navs_cache
-            .get_or_init(|| this_ref.trans.navs().to_pyarray(py).unbind());
-        let full_arr_bound = arr_ptr.bind(py).clone();
-
-        let idx = this_ref.inner().dates().len() as isize;
-
-        let py_slice = py.get_type::<PySlice>();
-        let index = py_slice.call1((idx,))?;
-
-        let key = PyTuple::new(py, [index])?;
-
-        let view = full_arr_bound.into_any().get_item(key)?;
-        Ok(view)
+    fn navs<'py>(this: &Bound<'py, Self>) -> Bound<'py, PyArray2<f64>> {
+        let this_ref = &*this.borrow();
+        let core_array = this_ref.inner.navs();
+        let container = this.clone().into_any();
+        let pyarr = unsafe { PyArray2::borrow_from_array(&core_array, container) };
+        let _ro = pyarr.readwrite().make_nonwriteable();
+        pyarr
     }
 
     fn cash_log(&self) -> Option<Vec<f64>> {
@@ -314,26 +298,21 @@ impl PyTransactionIterator {
 
 #[pyclass(name = "HistoryView")]
 pub struct PyHistoryView {
-    trans: Arc<CoreTransaction>,
-    ref_data: Py<PyArray1<f64>>,
+    _trans: Arc<CoreTransaction>,
+    inner: Arc<CoreHistoryView<'static, f64>>,
 }
 
 #[pymethods]
 impl PyHistoryView {
     #[staticmethod]
     fn from_vec<'py>(trans: &Bound<'py, PyTransaction>, ref_data: Vec<f64>) -> PyResult<Self> {
-        let trans_ptr = trans.borrow().inner.clone();
-        if trans_ptr.date().len() != ref_data.len() {
-            return Err(PyValueError::new_err(
-                "Size of ref_data must match the length of trans",
-            ));
-        }
-
-        let ref_data = PyArray1::from_vec(trans.py(), ref_data).unbind();
+        let core_trans: &'static CoreTransaction =
+            unsafe { &*(&*trans.borrow().inner as *const CoreTransaction) };
+        let inner = CoreHistoryView::from_vec(core_trans, ref_data).map_err(map_err)?;
 
         Ok(PyHistoryView {
-            trans: trans_ptr,
-            ref_data,
+            _trans: trans.borrow().inner.clone(),
+            inner: Arc::new(inner),
         })
     }
 
@@ -342,16 +321,14 @@ impl PyHistoryView {
         trans: &Bound<'py, PyTransaction>,
         ref_data: &Bound<'py, PyArray1<f64>>,
     ) -> PyResult<Self> {
-        let trans_ptr = trans.borrow().inner.clone();
-        if trans_ptr.date().len() != ref_data.len()? {
-            return Err(PyValueError::new_err(
-                "Size of ref_data must match the length of trans",
-            ));
-        }
+        let core_trans: &'static CoreTransaction =
+            unsafe { &*(&*trans.borrow().inner as *const CoreTransaction) };
+        let inner =
+            CoreHistoryView::from_arr(core_trans, ref_data.to_owned_array()).map_err(map_err)?;
 
         Ok(PyHistoryView {
-            trans: trans_ptr,
-            ref_data: ref_data.clone().unbind(),
+            _trans: trans.borrow().inner.clone(),
+            inner: Arc::new(inner),
         })
     }
 
@@ -359,19 +336,12 @@ impl PyHistoryView {
         this: &Bound<'py, Self>,
         it: &PyTransactionIterator,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        if Arc::ptr_eq(&this.borrow().trans, &it.trans) {
-            let py = this.py();
-            let this_ref = this.borrow();
-            let idx = it.inner().index();
-            let full_data = this_ref.ref_data.bind(py);
-            let slice = PySlice::new(py, 0, idx as isize, 1);
-            let sliced = full_data.get_item(slice)?;
-            let sliced_arr = sliced.cast::<PyArray1<f64>>()?;
-            Ok(sliced_arr.to_owned())
-        } else {
-            Err(PyRuntimeError::new_err(
-                "Given iterator is not from the same transaction instance it created from",
-            ))
-        }
+        let core_view = &*this.borrow().inner;
+        let core_it = &it.inner;
+        let core_arr = core_view.get(core_it).map_err(map_err)?;
+        let container = this.clone().into_any();
+        let pyarr = unsafe { PyArray1::borrow_from_array(&core_arr, container) };
+        let _ro = pyarr.readwrite().make_nonwriteable();
+        Ok(pyarr)
     }
 }
