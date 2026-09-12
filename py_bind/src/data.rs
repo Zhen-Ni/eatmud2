@@ -7,7 +7,7 @@ use eatmud::{
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyType};
 
-use crate::common::{pydate_to_rsdate, rsdate_to_pydate};
+use crate::common::{map_err, pydate_to_rsdate, rsdate_to_pydate};
 
 #[pyclass(name = "FundSlice")]
 pub struct PyFundSlice {
@@ -151,6 +151,12 @@ impl PyFund {
         let d = pydate_to_rsdate(date)?;
         self.inner.append(d, value);
         Ok(())
+    }
+
+    fn search_index<'py>(&self, date: &Bound<'py, PyAny>) -> PyResult<usize> {
+        Ok(self
+            .inner
+            .search_index(pydate_to_rsdate(date).map_err(map_err)?))
     }
 
     #[pyo3(signature = (start_date=None, end_date=None))]
