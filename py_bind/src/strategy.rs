@@ -1,7 +1,8 @@
 use crate::chrono::PyWeekday;
-use crate::transaction::PyTransactionIterator;
 use crate::common::map_err;
-use eatmud::strategy::aip_monthly as core_aip_monthly;
+use crate::transaction::{PyHistoryView, PyTransactionIterator};
+use eatmud::strategy::aip::aip_monthly as core_aip_monthly;
+use eatmud::strategy::indicator::{indicator_weekly as core_indicator_weekly, indicator_daily as core_indicator_daily};
 use eatmud::strategy::kelly::{
     KellyIndicator as CoreKellyIndicator, kelly_hint as core_kelly_hint,
     kelly_weekly as core_kelly_weekly,
@@ -76,5 +77,33 @@ pub fn kelly_weekly(
     inflations: Vec<f64>,
     risk_bounds: Vec<f64>,
 ) -> PyResult<()> {
-    core_kelly_weekly(it.inner_mut(), weekday.inner, &ns, &inflations, &risk_bounds).map_err(map_err)
+    core_kelly_weekly(
+        it.inner_mut(),
+        weekday.inner,
+        &ns,
+        &inflations,
+        &risk_bounds,
+    )
+    .map_err(map_err)
+}
+
+#[pyfunction]
+pub fn indicator_weekly(
+    it: &mut PyTransactionIterator,
+    weekday: PyWeekday,
+    indicators: Vec<Bound<'_, PyHistoryView>>,
+) -> PyResult<()> {
+    let py_views: Vec<_> = indicators.iter().map(|v| v.borrow()).collect();
+    let core_views: Vec<_> = py_views.iter().map(|v| v.inner()).collect();
+    core_indicator_weekly(it.inner_mut(), weekday.inner, &core_views).map_err(map_err)
+}
+
+#[pyfunction]
+pub fn indicator_daily(
+    it: &mut PyTransactionIterator,
+    indicators: Vec<Bound<'_, PyHistoryView>>,
+) -> PyResult<()> {
+    let py_views: Vec<_> = indicators.iter().map(|v| v.borrow()).collect();
+    let core_views: Vec<_> = py_views.iter().map(|v| v.inner()).collect();
+    core_indicator_daily(it.inner_mut(), &core_views).map_err(map_err)
 }

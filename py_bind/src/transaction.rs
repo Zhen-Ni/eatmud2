@@ -319,6 +319,12 @@ pub struct PyHistoryView {
     inner: Arc<CoreHistoryView<'static, f64>>,
 }
 
+impl PyHistoryView {
+    pub fn inner(&self) -> &CoreHistoryView<'static, f64> {
+        &self.inner
+    }
+}
+
 #[pymethods]
 impl PyHistoryView {
     #[staticmethod]
