@@ -121,14 +121,18 @@ impl<Ds: DataSlice> Data<Ds> {
         self.data.is_empty()
     }
 
+    pub fn search_index(&self, date: NaiveDate) -> usize {
+        search_sorted(self.data(), &date, |x| x.date(), Some(SIDE::Left))
+    }
+
     pub fn truncate(&mut self, start_date: Option<NaiveDate>, end_date: Option<NaiveDate>) {
         let start_idx = if let Some(date) = start_date {
-            search_sorted(self.data(), &date, |x| x.date(), Some(SIDE::Left))
+            self.search_index(date)
         } else {
             0
         };
         let end_idx = if let Some(date) = end_date {
-            search_sorted(self.data(), &date, |x| x.date(), Some(SIDE::Left))
+            self.search_index(date)
         } else {
             self.len()
         };

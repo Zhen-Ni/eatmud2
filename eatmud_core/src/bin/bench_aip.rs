@@ -36,6 +36,7 @@ fn main() {
     let end_date = NaiveDate::parse_from_str("20240101", "%Y%m%d").unwrap();
     let trans = Transaction::new(&[&hs300, &gz2000], Some(start_date), Some(end_date));
     let results = bench_aip(&trans);
+    println!("{:?}", results);
     assert_eq!(results[0], results[1]);
     assert_eq!(results[0], results[2]);
     assert_eq!(results[0], results[3]);
