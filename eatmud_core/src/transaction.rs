@@ -30,7 +30,7 @@ impl std::error::Error for HistoryViewError {}
 pub struct Transaction {
     names: Vec<String>,
     codes: Vec<String>,
-    date: Vec<NaiveDate>,
+    dates: Vec<NaiveDate>,
     navs: Array2<f64>, // net asset value
     start_date: NaiveDate,
     end_date: NaiveDate,
@@ -62,16 +62,16 @@ impl Transaction {
         let end_date = end_date.unwrap_or(
             funds.iter().map(|d| d[d.len() - 1].date()).min().unwrap() + chrono::Days::new(1),
         );
-        let mut date = Vec::new();
-        let mut navs = Vec::with_capacity(date.len() * funds.len());
+        let mut dates = Vec::new();
+        let mut navs = Vec::with_capacity(dates.len() * funds.len());
         for (i, d) in funds.iter().enumerate() {
             let beg = search_sorted(d.data(), &start_date, |rs| rs.date(), None);
             let end = search_sorted(&d.data()[beg..], &end_date, |rs| rs.date(), None) + beg;
             if i == 0 {
-                date.extend(d.data()[beg..end].iter().map(|rs| rs.date()));
+                dates.extend(d.data()[beg..end].iter().map(|rs| rs.date()));
             }
             // Check whether all dates in data are the same.
-            else if date
+            else if dates
                 .iter()
                 .copied()
                 .ne(d.data()[beg..end].iter().map(|rs| rs.date()))
@@ -81,13 +81,14 @@ impl Transaction {
 
             navs.extend(d.data()[beg..end].iter().map(|rs| rs.value()));
         }
-        let navs = Array2::from_shape_vec((date.len(), funds.len()).strides((1, date.len())), navs)
-            .unwrap();
+        let navs =
+            Array2::from_shape_vec((dates.len(), funds.len()).strides((1, dates.len())), navs)
+                .unwrap();
 
         Transaction {
             names,
             codes,
-            date,
+            dates,
             navs,
             start_date,
             end_date,
@@ -107,7 +108,7 @@ impl Transaction {
     }
 
     pub fn ndays(&self) -> usize {
-        self.date.len()
+        self.dates.len()
     }
 
     pub fn nfunds(&self) -> usize {
@@ -122,8 +123,8 @@ impl Transaction {
         self.end_date
     }
 
-    pub fn date(&self) -> &[NaiveDate] {
-        &self.date
+    pub fn dates(&self) -> &[NaiveDate] {
+        &self.dates
     }
 
     pub fn navs(&self) -> &Array2<f64> {
@@ -282,9 +283,9 @@ impl<'a> TransactionIterator<'a> {
 
     pub fn today(&self) -> NaiveDate {
         if self.is_finished() {
-            self.transaction.date[self.index - 1]
+            self.transaction.dates[self.index - 1]
         } else {
-            self.transaction.date[self.index]
+            self.transaction.dates[self.index]
         }
     }
 
@@ -324,7 +325,7 @@ impl<'a> TransactionIterator<'a> {
 
     /// Sequence of dates have iterated.
     pub fn dates(&self) -> &[NaiveDate] {
-        &self.transaction.date[..self.index]
+        &self.transaction.dates[..self.index]
     }
 
     /// A 2-d array of NAVs in history.
@@ -503,7 +504,7 @@ impl<'a> TransactionIterator<'a> {
         }
 
         if let Some(ref mut record) = self.iter_record {
-            let today = self.transaction.date[self.index];
+            let today = self.transaction.dates[self.index];
             record.cash_record.append(
                 today,
                 self.iter_buffer.cash,
@@ -586,8 +587,8 @@ impl<'a> TransactionIterator<'a> {
     /// * `weekday`/// If not given, it will de derived from `today`.
     pub fn next_weekday(&mut self, weekday: Option<Weekday>) -> Option<()> {
         let weekday = weekday.unwrap_or(self.today().weekday());
-        let mut n = self.transaction.date.len() - self.index;
-        for (i, day) in self.transaction.date[self.index..].iter().enumerate() {
+        let mut n = self.transaction.dates.len() - self.index;
+        for (i, day) in self.transaction.dates[self.index..].iter().enumerate() {
             if i == 0 {
                 continue;
             }
@@ -603,7 +604,7 @@ impl<'a> TransactionIterator<'a> {
     /// Step to user defined date.
     pub fn goto(&mut self, date: NaiveDate) -> Option<()> {
         let n = search_sorted(
-            &self.transaction.date[usize::min(self.index, self.transaction.date.len())..],
+            &self.transaction.dates[usize::min(self.index, self.transaction.dates.len())..],
             &date,
             |d| *d,
             None,
@@ -642,8 +643,8 @@ impl<'a> TransactionIterator<'a> {
         };
 
         let n = search_sorted(
-            &self.transaction.date[usize::min(self.index + 1, self.transaction.date.len())
-                ..usize::min(self.index + 61, self.transaction.date.len())],
+            &self.transaction.dates[usize::min(self.index + 1, self.transaction.dates.len())
+                ..usize::min(self.index + 61, self.transaction.dates.len())],
             &date,
             |d| *d,
             None,
@@ -689,7 +690,7 @@ pub struct HistoryView<'a, T> {
 
 impl<'a, T> HistoryView<'a, T> {
     pub fn from_vec(trans: &'a Transaction, ref_data: Vec<T>) -> Result<Self, HistoryViewError> {
-        if trans.date.len() == ref_data.len() {
+        if trans.dates.len() == ref_data.len() {
             Ok(HistoryView {
                 transaction: trans,
                 ref_data: Array1::from_vec(ref_data),
@@ -702,7 +703,7 @@ impl<'a, T> HistoryView<'a, T> {
     }
 
     pub fn from_arr(trans: &'a Transaction, ref_data: Array1<T>) -> Result<Self, HistoryViewError> {
-        if trans.date.len() == ref_data.len() {
+        if trans.dates.len() == ref_data.len() {
             Ok(HistoryView {
                 transaction: trans,
                 ref_data,

@@ -76,10 +76,10 @@ impl PyTransaction {
         rsdate_to_pydate(this.py(), this.borrow().inner.end_date())
     }
 
-    fn date<'py>(this: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
+    fn dates<'py>(this: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
         let py = this.py();
         let binding = this.borrow();
-        let dates = binding.inner.date();
+        let dates = binding.inner.dates();
         rsdates_to_pyarr(py, dates)
     }
 
