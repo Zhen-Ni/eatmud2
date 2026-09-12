@@ -1,4 +1,5 @@
 use eatmud::{Datelike, NaiveDate};
+use numpy::PyArray1;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
@@ -25,6 +26,17 @@ pub(crate) fn pydate_to_rsdate(obj: &Bound<'_, PyAny>) -> PyResult<NaiveDate> {
 #[inline]
 pub(crate) fn rsdate_to_pydate(py: Python<'_>, d: NaiveDate) -> PyResult<Bound<'_, PyDate>> {
     PyDate::new(py, d.year(), d.month() as u8, d.day() as u8)
+}
+
+#[inline]
+pub(crate) fn rsdates_to_pyarr<'py>(
+    py: Python<'py>,
+    dates: &[NaiveDate],
+) -> PyResult<Bound<'py, PyAny>> {
+    let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+    let days: Vec<i64> = dates.iter().map(|d| (*d - epoch).num_days()).collect();
+    let arr = PyArray1::from_vec(py, days);
+    arr.call_method1("view", ("datetime64[D]",))
 }
 
 #[inline]

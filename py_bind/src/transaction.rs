@@ -1,5 +1,5 @@
 use crate::chrono::PyWeekday;
-use crate::common::{map_err, pydate_to_rsdate, rsdate_to_pydate};
+use crate::common::{map_err, pydate_to_rsdate, rsdate_to_pydate, rsdates_to_pyarr};
 use crate::data::PyFund;
 use crate::record::{ConciseRecordSource, DetailedRecordSource, PyConciseRecord, PyDetailedRecord};
 use eatmud::transaction::{
@@ -76,13 +76,11 @@ impl PyTransaction {
         rsdate_to_pydate(this.py(), this.borrow().inner.end_date())
     }
 
-    fn date<'py>(this: &Bound<'py, Self>) -> PyResult<Vec<Bound<'py, PyDate>>> {
-        this.borrow()
-            .inner
-            .date()
-            .iter()
-            .map(|d| rsdate_to_pydate(this.py(), *d))
-            .collect()
+    fn date<'py>(this: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
+        let py = this.py();
+        let binding = this.borrow();
+        let dates = binding.inner.date();
+        rsdates_to_pyarr(py, dates)
     }
 
     fn navs<'py>(this: &Bound<'py, Self>) -> Bound<'py, PyArray2<f64>> {
@@ -155,13 +153,11 @@ impl PyTransactionIterator {
         self.inner().asset()
     }
 
-    fn dates<'py>(this: &Bound<'py, Self>) -> PyResult<Vec<Bound<'py, PyDate>>> {
-        this.borrow()
-            .inner()
-            .dates()
-            .iter()
-            .map(|d| rsdate_to_pydate(this.py(), *d))
-            .collect()
+    fn dates<'py>(this: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
+        let py = this.py();
+        let binding = this.borrow();
+        let dates = binding.inner().dates();
+        rsdates_to_pyarr(py, dates)
     }
 
     fn navs<'py>(this: &Bound<'py, Self>) -> Bound<'py, PyArray2<f64>> {
@@ -173,20 +169,41 @@ impl PyTransactionIterator {
         pyarr
     }
 
-    fn cash_log(&self) -> Option<Vec<f64>> {
-        self.inner().cash_log().map(|v| v.to_vec())
+    fn cash_log<'py>(this: &Bound<'py, Self>) -> Option<Bound<'py, PyArray1<f64>>> {
+        let binding = this.borrow();
+        let rsarr = binding.inner().cash_log()?;
+        let container = this.clone().into_any();
+        let pyarr = unsafe { PyArray1::borrow_from_array(&rsarr, container) };
+        let _ro = pyarr.readwrite().make_nonwriteable();
+        Some(pyarr)
     }
 
-    fn share_log(&self, idx: usize) -> Option<Vec<f64>> {
-        self.inner().share_log(idx).map(|v| v.to_vec())
+    fn share_log<'py>(this: &Bound<'py, Self>, idx: usize) -> Option<Bound<'py, PyArray1<f64>>> {
+        let binding = this.borrow();
+        let rsarr = binding.inner().share_log(idx)?;
+        let container = this.clone().into_any();
+        let pyarr = unsafe { PyArray1::borrow_from_array(&rsarr, container) };
+        let _ro = pyarr.readwrite().make_nonwriteable();
+        Some(pyarr)
     }
 
-    fn fund_asset_log(&self, idx: usize) -> Option<Vec<f64>> {
-        self.inner().fund_asset_log(idx).map(|v| v.to_vec())
+    fn fund_asset_log<'py>(
+        this: &Bound<'py, Self>,
+        idx: usize,
+    ) -> Option<Bound<'py, PyArray1<f64>>> {
+        let binding = this.borrow();
+        let rsarr = binding.inner().fund_asset_log(idx)?;
+        let pyarr = PyArray1::from_owned_array(this.py(), rsarr);
+        let _ro = pyarr.readwrite().make_nonwriteable();
+        Some(pyarr)
     }
 
-    fn asset_log(&self) -> Option<Vec<f64>> {
-        self.inner().asset_log().map(|v| v.to_vec())
+    fn asset_log<'py>(this: &Bound<'py, Self>) -> Option<Bound<'py, PyArray1<f64>>> {
+        let binding = this.borrow();
+        let rsarr = binding.inner().asset_log()?;
+        let pyarr = PyArray1::from_owned_array(this.py(), rsarr);
+        let _ro = pyarr.readwrite().make_nonwriteable();
+        Some(pyarr)
     }
 
     #[pyo3(signature = (amount, comment=None))]
