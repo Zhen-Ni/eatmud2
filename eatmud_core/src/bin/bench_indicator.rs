@@ -149,8 +149,8 @@ fn main() {
     let trans = Transaction::new(&[&hs300, &gz2000], Some(start_date), Some(end_date));
     let funds = [&hs300, &gz2000];
     ma_extremum(&trans, &funds);
-    print!("--------");
+    println!("--------");
     ma_cross(&trans, &funds);
-    print!("--------");
+    println!("--------");
     macd_cross(&trans, &funds);
 }
