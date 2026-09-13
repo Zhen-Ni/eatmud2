@@ -279,5 +279,4 @@ mod test {
         let res = max_drawdown(&[]);
         assert!(res.is_none());
     }
-
 }

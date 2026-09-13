@@ -2,7 +2,9 @@ use crate::chrono::PyWeekday;
 use crate::common::map_err;
 use crate::transaction::{PyHistoryView, PyTransactionIterator};
 use eatmud::strategy::aip::aip_monthly as core_aip_monthly;
-use eatmud::strategy::indicator::{indicator_weekly as core_indicator_weekly, indicator_daily as core_indicator_daily};
+use eatmud::strategy::indicator::{
+    indicator_daily as core_indicator_daily, indicator_weekly as core_indicator_weekly,
+};
 use eatmud::strategy::kelly::{
     KellyIndicator as CoreKellyIndicator, kelly_hint as core_kelly_hint,
     kelly_weekly as core_kelly_weekly,

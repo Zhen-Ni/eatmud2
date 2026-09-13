@@ -31,8 +31,8 @@ pub fn aip_monthly(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::*;
     use crate::io::read_tdx;
+    use crate::*;
 
     #[test]
     fn test_aip_1() {

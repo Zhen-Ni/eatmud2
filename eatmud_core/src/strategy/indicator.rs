@@ -31,7 +31,6 @@ pub fn indicator_daily(
     Ok(())
 }
 
-
 /// Buy if indicator is larger than 0.
 pub fn indicator_weekly(
     it: &mut TransactionIterator,
@@ -70,7 +69,7 @@ mod test {
 
     fn diff(v: Vec<f64>) -> Vec<f64> {
         let mut r = Vec::new();
-        if v.len() == 0 {
+        if v.is_empty() {
             return r;
         }
         r.push(0.);

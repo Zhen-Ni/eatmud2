@@ -37,12 +37,14 @@ class TestData(unittest.TestCase):
         self.assertEqual(stock[0].close, 154.82)
         self.assertEqual(stock[1].value, 153.45)
 
+
 class TestIndicators(unittest.TestCase):
     def setUp(self):
         self.fund = eatmud.Fund("test", "000000")
         base_date = datetime.date(2024, 1, 1)
         for i in range(1, 11):
-            self.fund.append(base_date + datetime.timedelta(days=i - 1), float(i))
+            self.fund.append(
+                base_date + datetime.timedelta(days=i - 1), float(i))
 
     def test_ma(self):
         fund = self.fund

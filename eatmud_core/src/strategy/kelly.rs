@@ -1,7 +1,7 @@
 use crate::DAYS_PER_YEAR;
 use crate::{TransactionIterator, Weekday};
 use chrono::Datelike;
-use ndarray::{s, Array, Array1};
+use ndarray::{Array, Array1, s};
 
 #[derive(Debug)]
 pub struct KellyError(&'static str);
@@ -230,8 +230,8 @@ fn kelly_equation(p: f64, b: f64, c: f64) -> f64 {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::*;
     use crate::io::read_tdx;
+    use crate::*;
 
     #[test]
     fn test_kelly_1() {

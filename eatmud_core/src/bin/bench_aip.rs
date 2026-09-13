@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use chrono::NaiveDate;
-use eatmud::{io::read_tdx, Fund, Transaction};
+use eatmud::{Fund, Transaction, io::read_tdx};
 
 fn bench_aip(trans: &Transaction) -> Vec<Vec<f64>> {
     let mut results = Vec::new();

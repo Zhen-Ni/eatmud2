@@ -1,4 +1,3 @@
-
 macro_rules! warning {
     ($($arg:tt)*) => {
         eprintln!($($arg)*)
