@@ -2,6 +2,15 @@ use crate::HistoryView;
 use crate::TransactionIterator;
 use crate::Weekday;
 
+#[derive(Debug)]
+pub struct IndicatorError(&'static str);
+
+impl std::fmt::Display for IndicatorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        writeln!(f, "IndicatorError: {}", self.0)
+    }
+}
+
 /// Buy if indicator is larger than 0.
 pub fn indicator_daily(
     it: &mut TransactionIterator,
@@ -16,7 +25,7 @@ pub fn indicator_daily(
         }
         for i in 0..it.nfunds() {
             let s = &mut status[i];
-            let indicator = indicators[i].get(it).unwrap();
+            let indicator = indicators[i].get(it)?;
             let v = indicator[index - 1];
             if v > 0.0 && !*s {
                 it.position(i, position, 0.0, false)?;
@@ -46,7 +55,7 @@ pub fn indicator_weekly(
         }
         for i in 0..it.nfunds() {
             let s = &mut status[i];
-            let indicator = indicators[i].get(it).unwrap();
+            let indicator = indicators[i].get(it)?;
             let v = indicator[index - 1];
             if v > 0.0 && !*s {
                 it.position(i, position, 0.0, false)?;
