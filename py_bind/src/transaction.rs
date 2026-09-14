@@ -124,6 +124,23 @@ impl PyTransactionIterator {
 #[pymethods]
 impl PyTransactionIterator {
     #[getter]
+    fn index(&self) -> usize {
+        self.inner.index()
+    }
+
+    #[getter]
+    pub fn start_date<'py>(this: &Bound<'py, Self>) -> PyResult<Bound<'py, PyDate>> {
+        let rs_date = this.borrow().inner().start_date();
+        rsdate_to_pydate(this.py(), rs_date)
+    }
+
+    #[getter]
+    pub fn end_date<'py>(this: &Bound<'py, Self>) -> PyResult<Bound<'py, PyDate>> {
+        let rs_date = this.borrow().inner().end_date();
+        rsdate_to_pydate(this.py(), rs_date)
+    }
+
+    #[getter]
     fn nfunds(&self) -> usize {
         self.inner().nfunds()
     }

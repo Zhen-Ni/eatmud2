@@ -9,6 +9,7 @@ use eatmud::strategy::kelly::{
     KellyIndicator as CoreKellyIndicator, kelly_hint as core_kelly_hint,
     kelly_weekly as core_kelly_weekly,
 };
+use eatmud::strategy::reference::reference as core_reference;
 use pyo3::prelude::*;
 
 #[pyfunction]
@@ -108,4 +109,9 @@ pub fn indicator_daily(
     let py_views: Vec<_> = indicators.iter().map(|v| v.borrow()).collect();
     let core_views: Vec<_> = py_views.iter().map(|v| v.inner()).collect();
     core_indicator_daily(it.inner_mut(), &core_views).map_err(map_err)
+}
+
+#[pyfunction]
+pub fn reference(it: &mut PyTransactionIterator) -> PyResult<()> {
+    core_reference(it.inner_mut()).map_err(map_err)
 }

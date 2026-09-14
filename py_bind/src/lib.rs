@@ -42,6 +42,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     strategy_module.add_function(wrap_pyfunction!(strategy::kelly_hint, m)?)?;
     strategy_module.add_function(wrap_pyfunction!(strategy::indicator_weekly, m)?)?;
     strategy_module.add_function(wrap_pyfunction!(strategy::indicator_daily, m)?)?;
+    strategy_module.add_function(wrap_pyfunction!(strategy::reference, m)?)?;
     m.add_submodule(&strategy_module)?;
 
     let io_module = PyModule::new(m.py(), "io")?;

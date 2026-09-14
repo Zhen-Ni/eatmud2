@@ -136,17 +136,18 @@ impl Transaction {
     }
 }
 
-/// Records transaction operations during one iteration.
+/// Records pending (not yet committed) transaction changes of the
+/// current day.
 ///
-/// This is used by TransactionIterator to record transaction
-/// operations and its fields are not visible to user of
-/// TransactionIterator.
-///
-/// This struct is necessary despite the existance of IterStatus, as
-/// we do not want the user to observe changes in the status of the
-/// TransactionIterator when they are making transactions.
+/// When `inflow`/`buy`/`sell` is called, the change is accumulated
+/// here first and only merged into [`IterStatus`] by `flush()`. This
+/// guarantees that `cash()`/`share()` still report the state at the
+/// beginning of the day while the user is making transactions.
 struct IterBuffer {
+    /// Pending change of cash in the current day.
     cash: f64,
+    /// Pending change of each fund's shares in the current day,
+    /// with length equal to `nfunds`.
     shares: Vec<f64>,
 }
 
@@ -157,16 +158,17 @@ impl IterBuffer {
     }
 }
 
-/// Current transaction status.
+/// Committed transaction status at the beginning of the current day.
 ///
-/// This struct is hold by TransactionIterator and has two fields:
-/// cash and shares. `index` is the current index of the transaction
-/// iterator, ranging from 0 to `ndate`. The TransactionIterator
-/// reaches end when `index` equals to `ndate`. `cash` is the current
-/// cash at the beginning of the day. `shares` is a list of floats
-/// indicating the shares of the funds at the beginning of the day.
+/// This struct is held by `TransactionIterator` and is only updated
+/// by `flush()`. `cash()`/`share()`/`asset()` all read from it. The
+/// current iteration index is documented on
+/// `TransactionIterator::index`.
 struct IterStatus {
+    /// Cash held at the beginning of the day.
     cash: f64,
+    /// Shares of each fund at the beginning of the day, with length
+    /// equal to `nfunds`.
     shares: Vec<f64>,
 }
 
@@ -257,6 +259,14 @@ impl<'a> TransactionIterator<'a> {
 
     pub fn index(&self) -> usize {
         self.index
+    }
+
+    pub fn start_date(&self) -> NaiveDate {
+        self.transaction.start_date()
+    }
+
+    pub fn end_date(&self) -> NaiveDate {
+        self.transaction.end_date()
     }
 
     #[inline]
