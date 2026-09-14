@@ -9,6 +9,3 @@ edition = "2024"
 [workspace.dependencies]
 ndarray = "0.17"
 chrono = "0.4"
-
-[profile.release]
-lto = "thin"
