@@ -27,6 +27,14 @@ impl PyFundSlice {
     fn value(&self) -> f64 {
         self.inner.value()
     }
+
+    fn __repr__(&self) -> String {
+        format!("{}", self.inner)
+    }
+
+    fn __str__(&self) -> String {
+        format!("{}", self.inner)
+    }
 }
 
 #[pyclass(name = "StockSlice")]
@@ -70,6 +78,14 @@ impl PyStockSlice {
     #[getter]
     fn volume(&self) -> f64 {
         self.inner.volume()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{}", self.inner)
+    }
+
+    fn __str__(&self) -> String {
+        format!("{}", self.inner)
     }
 }
 
@@ -141,6 +157,10 @@ impl PyFund {
 
     fn __len__(&self) -> usize {
         self.inner.len()
+    }
+
+    fn __str__(&self) -> String {
+        format!("{}", self.inner)
     }
 
     fn is_empty(&self) -> bool {
@@ -230,6 +250,10 @@ impl PyStock {
 
     fn __len__(&self) -> usize {
         self.inner.len()
+    }
+
+    fn __str__(&self) -> String {
+        format!("{}", self.inner)
     }
 
     fn is_empty(&self) -> bool {

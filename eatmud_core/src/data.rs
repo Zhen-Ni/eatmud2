@@ -1,3 +1,4 @@
+use core::fmt;
 use std::ops::Index;
 
 use chrono::NaiveDate;
@@ -71,6 +72,28 @@ impl DataSlice for StockSlice {
 
     fn value(&self) -> f64 {
         self.close
+    }
+}
+
+impl fmt::Display for FundSlice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "FundSlice {{")?;
+        write!(f, "date={}, ", self.date())?;
+        write!(f, "value={:.4}}}", self.value())?;
+        fmt::Result::Ok(())
+    }
+}
+
+impl fmt::Display for StockSlice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "StockSlice {{")?;
+        write!(f, "date={}, ", self.date())?;
+        write!(f, "open={:.2}, ", self.open())?;
+        write!(f, "high={:.2}, ", self.high())?;
+        write!(f, "low={:.2}, ", self.low())?;
+        write!(f, "close={:.2}, ", self.close())?;
+        write!(f, "volume={:.2}}}", self.volume())?;
+        fmt::Result::Ok(())
     }
 }
 
@@ -214,6 +237,40 @@ impl<Ds: DataSlice> From<&Data<Ds>> for Fund {
             })
             .collect();
         fund
+    }
+}
+
+impl std::fmt::Display for Fund {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        writeln!(f, "date        value")?;
+        for data in self.data() {
+            writeln!(
+                f,
+                "{:<10}  {:<8.2}",
+                data.date(),
+                data.value()
+            )?;
+        }
+        std::fmt::Result::Ok(())
+    }
+}
+
+impl std::fmt::Display for Stock {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        writeln!(f, "date        open     high     low      close    volume")?;
+        for data in self.data() {
+            writeln!(
+                f,
+                "{:<10}  {:<7.2}  {:<7.2}  {:<7.2}  {:<7.2}  {:<9}",
+                data.date(),
+                data.open(),
+                data.high(),
+                data.low(),
+                data.close(),
+                data.volume()
+            )?;
+        }
+        std::fmt::Result::Ok(())
     }
 }
 
