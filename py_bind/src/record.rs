@@ -47,6 +47,10 @@ impl PyConciseRecordSlice {
         self.inner.profit()
     }
 
+    fn __repr__(&self) -> String {
+        format!("{}", self.inner)
+    }
+
     fn __str__(&self) -> String {
         format!("{}", self.inner)
     }
@@ -108,6 +112,10 @@ impl PyDetailedRecordSlice {
     #[getter]
     fn profit(&self) -> f64 {
         self.inner.profit()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{}", self.inner)
     }
 
     fn __str__(&self) -> String {
