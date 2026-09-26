@@ -46,6 +46,10 @@ impl PyConciseRecordSlice {
     fn profit(&self) -> f64 {
         self.inner.profit()
     }
+
+    fn __str__(&self) -> String {
+        format!("{}", self.inner)
+    }
 }
 
 #[pyclass(name = "DetailedRecordSlice")]
@@ -104,6 +108,10 @@ impl PyDetailedRecordSlice {
     #[getter]
     fn profit(&self) -> f64 {
         self.inner.profit()
+    }
+
+    fn __str__(&self) -> String {
+        format!("{}", self.inner)
     }
 }
 

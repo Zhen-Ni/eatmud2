@@ -147,6 +147,36 @@ impl RecordSlice for DetailedRecordSlice {
     }
 }
 
+impl fmt::Display for ConciseRecordSlice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ConciseRecordSlice {{")?;
+        write!(f, "date={}, ", self.date())?;
+        write!(f, "investment={:.2}, ", self.investment())?;
+        write!(f, "present_value={:.2}, ", self.present_value())?;
+        write!(f, "comment=\"{}\", ", self.comment())?;
+        write!(f, "total_investment={:.2}, ", self.total_investment())?;
+        write!(f, "profit={:.2}}}", self.profit())?;
+        fmt::Result::Ok(())
+    }
+}
+
+impl fmt::Display for DetailedRecordSlice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DetailedRecordSlice {{")?;
+        write!(f, "date={}, ", self.date())?;
+        write!(f, "investment={:.2}, ", self.investment())?;
+        write!(f, "nav={:.4}, ", self.nav())?;
+        write!(f, "share={:.4}, ", self.share())?;
+        write!(f, "comment=\"{}\", ", self.comment())?;
+        write!(f, "fee={:.2}, ", self.fee())?;
+        write!(f, "total_investment={:.2}, ", self.total_investment())?;
+        write!(f, "total_share={:.2}, ", self.total_share())?;
+        write!(f, "present_value={:.2}, ", self.present_value())?;
+        write!(f, "profit={:.2}}}", self.profit())?;
+        fmt::Result::Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Record<Rs: RecordSlice> {
     pub name: String,
