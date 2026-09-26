@@ -250,6 +250,12 @@ impl PyStock {
         Ok(())
     }
 
+    fn search_index<'py>(&self, date: &Bound<'py, PyAny>) -> PyResult<usize> {
+        Ok(self
+            .inner
+            .search_index(pydate_to_rsdate(date).map_err(map_err)?))
+    }
+
     #[pyo3(signature = (start_date=None, end_date=None))]
     fn truncate(
         &mut self,

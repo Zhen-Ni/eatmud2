@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 from .xlsx import *
+from .tdx_tq import get_market_data
+
 from eatmud._core import io as _core_io
 read_tdx = _core_io.read_tdx
 
