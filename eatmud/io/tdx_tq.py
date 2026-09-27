@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from __future__ import annotations
 import os
 import sys
 import re
@@ -24,9 +25,17 @@ def _load_tq():
         sys.path.append(_PYPLUGIN_DIR)
         from tqcenter import tq as tq_module
     except ImportError as e:
+        missing = getattr(e, 'name', None)
+        if missing == 'tqcenter':
+            raise TdxTqError(
+                f"Failed to load tqcenter (TDX_DIR={_TDX_PATH}). "
+                "Please check that the TDX PYPlugins are installed."
+            ) from e
         raise TdxTqError(
-            f"Failed to load tqcenter (TDX_DIR={_TDX_PATH}). "
-            "Please check that the TDX PYPlugins are installed."
+            "Failed to load tqcenter due to a missing dependency: "
+            f"{missing!r}. "
+            "The tdx extra is optional; try installing it with: "
+            "pip install eatmud[tdx]"
         ) from e
 
     if '__file__' in globals():

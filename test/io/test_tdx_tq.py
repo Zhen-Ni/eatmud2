@@ -3,8 +3,36 @@
 import unittest
 import eatmud
 
+try:
+    import eatmud.io.tdx_tq  # noqa: F401
+    HAS_TDX_TQ = True
+except Exception:
+    HAS_TDX_TQ = False
+
 
 class TestTdxTq(unittest.TestCase):
+    def test_all(self):
+        """Check that the lazy exports are listed in __all__."""
+        self.assertEqual(
+            eatmud.io.__all__,
+            ['read_tdx', 'get_market_data', 'TdxTqError'],
+        )
+
+    def test_dir(self):
+        """Check that the lazy exports appear in dir()."""
+        names = dir(eatmud.io)
+        self.assertIn('get_market_data', names)
+        self.assertIn('TdxTqError', names)
+        self.assertIn('read_tdx', names)
+
+    @unittest.skipUnless(HAS_TDX_TQ, "optional tdx module is not available")
+    def test_lazy_import(self):
+        """Check that the tdx_tq exports can be lazily imported."""
+        from eatmud.io import TdxTqError, get_market_data
+        self.assertTrue(issubclass(TdxTqError, Exception))
+        self.assertTrue(callable(get_market_data))
+
+    @unittest.skipUnless(HAS_TDX_TQ, "optional tdx module is not available")
     def test_tdx_tq(self):
         data_txt = eatmud.io.read_tdx("tdx/test-hs300.txt")
         data_tq = eatmud.io.get_market_data('000300.SH')

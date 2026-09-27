@@ -16,6 +16,12 @@ dependencies = [
     "openpyxl>=3.1.5",
 ]
 
+[project.optional-dependencies]
+# Note: tqcenter is shipped with the TDX client's PYPlugins and cannot
+# be installed via pip. pandas is required by the tq interface at runtime.
+# See eatmud/io/tdx_tq.py for details.
+tdx = ["pandas>=1.5"]
+
 [tool.maturin]
 manifest-path = "py_bind/Cargo.toml"
 module-name = "eatmud._core"
