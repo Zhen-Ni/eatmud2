@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
-import time
+from __future__ import annotations
+
 import datetime
+import time
+
 import eatmud
 
 

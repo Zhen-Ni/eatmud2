@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
-import time
+from __future__ import annotations
+
 import datetime
+import time
+
 import eatmud
 
 
@@ -16,7 +19,7 @@ def bench_kelly(trans: eatmud.Transaction, start_date: eatmud.Date
             name = f'save_log={save_log}, save_record={save_record}'
             now = time.time()
             res = []
-            for weekday in range(0, 5):
+            for weekday in range(5):
                 it = trans.iter(save_log, save_record)
                 it.goto(start_date)
                 it.inflow(1.)

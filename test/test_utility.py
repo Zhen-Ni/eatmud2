@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import unittest
-from eatmud import max_drawdown
-from eatmud import irr
+
+from eatmud import irr, max_drawdown
 
 
 class TestUtility(unittest.TestCase):

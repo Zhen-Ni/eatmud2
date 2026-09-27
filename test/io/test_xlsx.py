@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-import unittest
 import datetime
+import unittest
+
 import eatmud
 
 

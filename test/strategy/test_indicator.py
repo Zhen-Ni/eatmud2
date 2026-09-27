@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
-import unittest
+from __future__ import annotations
+
 import datetime
+import unittest
+
 import eatmud
 
 

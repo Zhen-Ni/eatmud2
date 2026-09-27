@@ -764,7 +764,7 @@ mod test {
         let t = Transaction::new(&[&hs300, &gz2000], Some(start_date), None);
         let mut it = t.iter(false, false);
         let mut idx = 0;
-        while let Some(_) = it.next_day() {
+        while it.next_day().is_some() {
             it.inflow(1.0).unwrap();
             assert!(it.cash() == idx as f64);
             assert!(it.asset() == idx as f64);
@@ -785,7 +785,7 @@ mod test {
         let mut it = t.iter(false, false);
         it.inflow(100.).unwrap();
         assert_eq!(it.asset(), 0.);
-        while let Some(_) = it.next_weekday(Some(Weekday::Wed)) {
+        while it.next_weekday(Some(Weekday::Wed)).is_some() {
             assert!(it.asset() > 90.);
             assert!(it.asset() < 110.);
             it.buy(0, 10., 0.).unwrap();
@@ -808,7 +808,7 @@ mod test {
         it.inflow(100.).unwrap();
         let nav = 7459.99;
         assert_eq!(it.asset(), 0.);
-        while let Some(_) = it.next_month(Some(28)) {
+        while it.next_month(Some(28)).is_some() {
             it.buy(1, 100., 0.1).unwrap();
         }
         assert_eq!(it.cash(), 0.);
@@ -868,7 +868,7 @@ mod test {
         let t = Transaction::new(&[&hs300, &gz2000], Some(start_date), Some(end_date));
         let mut it = t.iter(false, false);
         it.inflow(100.).unwrap();
-        while let Some(_) = it.next_month(Some(28)) {
+        while it.next_month(Some(28)).is_some() {
             it.buy(1, 100., 0.1).unwrap();
         }
         it.sell(1, it.share(1), 0.2).unwrap();

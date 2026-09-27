@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-import unittest
 import datetime
+import unittest
+
 import eatmud
 
 
@@ -71,7 +72,8 @@ class TestIndicators(unittest.TestCase):
         fund = self.fund
         macd = fund.macd(3, 5, 2)
         self.assertEqual(len(macd.dif), 10)
-        # The first values of dif and hist are 0, because ema_short[0] == ema_long[0] == data[0]
+        # The first values of dif and hist are 0,
+        # because ema_short[0] == ema_long[0] == data[0]
         self.assertAlmostEqual(macd.dif[0], 0.0)
         self.assertAlmostEqual(macd.hist[0], 0.0)
         # dif[1] = ema_short[1] - ema_long[1]

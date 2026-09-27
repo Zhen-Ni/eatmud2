@@ -1,23 +1,45 @@
 #!/usr/bin/env python3
-import datetime
-import abc
-from typing import Optional
-from . import _core
-from ._core import FundSlice, StockSlice, Fund, Stock
-from ._core import ConciseRecordSlice, DetailedRecordSlice, \
-    ConciseRecord, DetailedRecord, merge_records, get_irrs
-from ._core import Transaction, Weekday, HistoryView
-from ._core import irr, max_drawdown
-from . import io
-from . import strategy
+from __future__ import annotations
 
-__all__ = ['_core',
-           'Date',
-           'Fund', 'Stock',
-           'ConciseRecord', 'DetailedRecord', 'merge_records', 'get_irrs',
-           'irr', 'max_drawdown',
-           'Transaction', 'Weekday', 'HistoryView',
-           'io', 'strategy']
+import abc
+import datetime
+
+from ._core import (
+    ConciseRecord,
+    ConciseRecordSlice,
+    DetailedRecord,
+    DetailedRecordSlice,
+    Fund,
+    FundSlice,
+    HistoryView,
+    Stock,
+    StockSlice,
+    Transaction,
+    Weekday,
+    get_irrs,
+    irr,
+    max_drawdown,
+    merge_records,
+)
+from . import _core, io, strategy
+
+__all__ = [
+    "ConciseRecord",
+    "Date",
+    "DetailedRecord",
+    "Fund",
+    "HistoryView",
+    "Stock",
+    "Transaction",
+    "Weekday",
+    "_core",
+    "get_irrs",
+    "io",
+    "irr",
+    "max_drawdown",
+    "merge_records",
+    "strategy",
+]
 
 Date = datetime.date
 
@@ -105,26 +127,28 @@ class Record(abc.ABC):
     def __getitem__(self, index: int) -> DataSlice: ...
 
     @abc.abstractmethod
-    def irr(self,
-            start_date: Optional[datetime.date],
-            end_date: Optional[datetime.date],
-            start_value: Optional[float],
-            end_value: Optional[float],
-            x0: Optional[float]
-            ) -> float: ...
+    def irr(
+        self,
+        start_date: datetime.date | None,
+        end_date: datetime.date | None,
+        start_value: float | None,
+        end_value: float | None,
+        x0: float | None,
+    ) -> float: ...
 
     @abc.abstractmethod
     def irr_naive(self) -> float: ...
 
-    def irr_direct(self,
-                   start_date: datetime.date,
-                   end_date: datetime.date,
-                   start_value: float,
-                   end_value: float,
-                   start_idx: int,
-                   end_idx: int,
-                   x0: float
-                   ) -> float: ...
+    def irr_direct(
+        self,
+        start_date: datetime.date,
+        end_date: datetime.date,
+        start_value: float,
+        end_value: float,
+        start_idx: int,
+        end_idx: int,
+        x0: float,
+    ) -> float: ...
 
 
 Record.register(ConciseRecord)

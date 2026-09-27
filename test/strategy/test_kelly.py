@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
-import unittest
 import datetime
+import unittest
+
 import numpy as np
+
 import eatmud
 
 
@@ -30,12 +32,13 @@ class TestKelly(unittest.TestCase):
         for save_log in (True, False,):
             for save_record in (True, False):
                 res = []
-                for weekday in range(0, 5):
+                for weekday in range(5):
                     it = trans.iter(save_log, save_record)
                     it.goto(start_date)
                     it.inflow(1.)
-                    eatmud.strategy.kelly_weekly(it, eatmud.Weekday(weekday), ns, inflations,
-                                                 risk_bounds)
+                    eatmud.strategy.kelly_weekly(
+                        it, eatmud.Weekday(weekday), ns,
+                        inflations, risk_bounds)
                     res.append(it.asset())
                 results.append(res)
         self.assertTrue(results[0] == results[1])
@@ -50,7 +53,7 @@ class TestKelly(unittest.TestCase):
         inflations = [0.015, 0.015]
         risk_bounds = [0.01, 0.01]
         result = []
-        for weekday in range(0, 5):
+        for weekday in range(5):
             it = trans.iter(False, False)
             it.goto(start_date)
             it.inflow(1.)
