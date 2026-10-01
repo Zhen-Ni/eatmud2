@@ -211,9 +211,14 @@ impl PyFund {
         }
     }
 
-    fn __getitem__(&mut self, index: usize) -> PyResult<PyFundSlice> {
+    fn __getitem__(&mut self, idx: isize) -> PyResult<PyFundSlice> {
+        let len = self.inner.len() as isize;
+        let actual_idx = if idx < 0 { len + idx } else { idx };
+        if actual_idx < 0 || actual_idx >= len {
+            return Err(pyo3::exceptions::PyIndexError::new_err("idx out of range"));
+        }
         Ok(PyFundSlice {
-            inner: self.inner[index].clone(),
+            inner: self.inner[idx as usize].clone(),
         })
     }
 
@@ -312,9 +317,14 @@ impl PyStock {
         }
     }
 
-    fn __getitem__(&mut self, index: usize) -> PyResult<PyStockSlice> {
+    fn __getitem__(&mut self, idx: isize) -> PyResult<PyStockSlice> {
+        let len = self.inner.len() as isize;
+        let actual_idx = if idx < 0 { len + idx } else { idx };
+        if actual_idx < 0 || actual_idx >= len {
+            return Err(pyo3::exceptions::PyIndexError::new_err("idx out of range"));
+        }
         Ok(PyStockSlice {
-            inner: self.inner[index].clone(),
+            inner: self.inner[idx as usize].clone(),
         })
     }
 }
