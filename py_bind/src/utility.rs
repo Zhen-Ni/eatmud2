@@ -1,6 +1,9 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::{PyResult, pyfunction};
 
+/// Number of days per year, used for annualizing returns.
+pub const DAYS_PER_YEAR: f64 = eatmud::DAYS_PER_YEAR;
+
 /// Calaulate internal rate of return.
 ///
 /// An gradient-based iteration method is used for solving internal

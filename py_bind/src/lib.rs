@@ -30,6 +30,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(record::merge_records, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(utility::irr, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(utility::max_drawdown, m)?)?;
+    m.add("DAYS_PER_YEAR", utility::DAYS_PER_YEAR)?;
 
     let io_module = PyModule::new(m.py(), "io")?;
     io_module.add_function(pyo3::wrap_pyfunction!(io::read_tdx, &io_module)?)?;

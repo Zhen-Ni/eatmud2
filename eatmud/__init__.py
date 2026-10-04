@@ -5,6 +5,7 @@ import abc
 import datetime
 
 from ._core import (
+    DAYS_PER_YEAR,
     ConciseRecord,
     ConciseRecordSlice,
     DetailedRecord,
@@ -24,6 +25,7 @@ from ._core import (
 from . import _core, io, strategy
 
 __all__ = [
+    "DAYS_PER_YEAR",
     "ConciseRecord",
     "Date",
     "DetailedRecord",
