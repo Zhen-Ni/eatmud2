@@ -302,4 +302,64 @@ mod test {
         assert!((result[3] - 1.489728842992303).abs() < 1e-6);
         assert!((result[4] - 1.3982690518133718).abs() < 1e-6);
     }
+
+    // Test whether kelly_weekly and kelly_hint provides the same
+    // result.
+    #[test]
+    fn test_kelly_3() {
+        let hs300 = Fund::from(&read_tdx("../tdx/test-hs300.txt").unwrap());
+        let gz2000 = Fund::from(&read_tdx("../tdx/test-gz2000.txt").unwrap());
+        let start_date = NaiveDate::parse_from_str("20170101", "%Y%m%d").unwrap();
+        let end_date = NaiveDate::parse_from_str("20240101", "%Y%m%d").unwrap();
+        let trans = Transaction::new(&[&hs300, &gz2000], None, Some(end_date));
+
+        let ns = [1300, 1600];
+        let inflations = [0.015, 0.015];
+        let risk_bounds = [0.01, 0.01];
+
+        let weekday = Weekday::Tue;
+
+        let mut it1 = trans.iter(true, true);
+        it1.goto(start_date);
+        it1.inflow(1.).unwrap();
+        kelly_weekly(&mut it1, weekday, &ns, &inflations, &risk_bounds).unwrap();
+
+        let mut it2 = trans.iter(true, true);
+        it2.goto(start_date);
+        it2.inflow(1.).unwrap();
+        while it2.next_weekday(Some(weekday)).is_some() {
+            for i in 0..trans.nfunds() {
+                let indicator =
+                    kelly_hint(&it2, i, weekday, ns[i], inflations[i], risk_bounds[i]).unwrap();
+                // Adjust position the same way as kelly_weekly does.
+                let total = it2.asset() / trans.nfunds() as f64 * indicator.position;
+                let amount = total - it2.fund_asset(i);
+                it2.buy_comment(
+                    i,
+                    amount,
+                    0.0,
+                    &format!("position = {:.2}%", 100. * indicator.position),
+                )
+                .unwrap();
+            }
+        }
+
+        // Compare the comments of each fund's records.
+        for i in 0..trans.nfunds() {
+            let record1 = it1.fund_record(i).unwrap();
+            let record2 = it2.fund_record(i).unwrap();
+            assert_eq!(record1.len(), record2.len());
+            for j in 0..record1.len() {
+                assert_eq!(record1[j].comment(), record2[j].comment());
+            }
+        }
+
+        // Compare the asset logs.
+        let log1 = it1.asset_log().unwrap();
+        let log2 = it2.asset_log().unwrap();
+        assert!(log1
+            .iter()
+            .zip(log2.iter())
+            .all(|(&a, &b)| (a - b).abs() < 1e-10));
+    }
 }
