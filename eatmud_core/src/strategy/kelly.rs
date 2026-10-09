@@ -1,7 +1,7 @@
 use crate::DAYS_PER_YEAR;
 use crate::{TransactionIterator, Weekday};
 use chrono::Datelike;
-use ndarray::{Array, Array1, s};
+use ndarray::{Array, s};
 
 #[derive(Debug)]
 pub struct KellyError(&'static str);
@@ -36,7 +36,7 @@ macro_rules! maxmin {
             .next()
             .expect("fail to find max and min as array is empty");
         let mut min = max;
-        while let Some(&v) = it.next() {
+        for &v in it {
             if max < v {
                 max = v;
             }
@@ -83,14 +83,27 @@ pub fn kelly_hint(
     let y0 = navs.slice(s![-(n as isize).., fund_index as isize]);
     let y = &y0 * &inflation_array;
     // Get winning rate.
-    let y_weekly = y
+    let mut y_weekly_iter = y
         .iter()
         .zip(&it.dates()[it.dates().len() - n..])
         .filter(|&(_yi, &di)| di.weekday() == weekday)
-        .map(|(&yi, _di)| yi)
-        .collect::<Array1<_>>();
-    let dy = &y_weekly.slice(s![1..]) - &y_weekly.slice(s![..-1]);
-    let p = dy.iter().filter(|&&x| x > 0.).count() as f64 / dy.len() as f64;
+        .map(|(&yi, _di)| yi);
+    let mut win_count = 0usize;
+    let mut total_count = 0usize;
+    let mut y_weekly_prev = y_weekly_iter
+        .next()
+        .ok_or(KellyError("cannot calculate winning rate"))?;
+    for y_weekly_curr in y_weekly_iter {
+        if y_weekly_curr > y_weekly_prev {
+            win_count += 1;
+        }
+        total_count += 1;
+        y_weekly_prev = y_weekly_curr;
+    }
+    if total_count == 0 {
+        return Err(Box::new(KellyError("cannot calculate winning rate")));
+    }
+    let p = win_count as f64 / total_count as f64;
     let q = 1. - p;
     let (y_max, y_min) = maxmin!(y);
     let (y0_max, y0_min) = maxmin!(y0);
@@ -148,15 +161,28 @@ pub fn kelly_weekly(
             let y0 = navs.slice(s![-(ns[j] as isize).., j as isize]);
             // Net asset value considering inflation: y = y0 * (1 + inflation) ** number_of_years_to_today
             let y = &y0 * &inflation_arrays[j];
-            // Get winning rate.
-            let y_weekly = y
+            // Get winning rate `p`.
+            let mut y_weekly_iter = y
                 .iter()
                 .zip(&weekday_cache[weekday_cache.len() - ns[j]..])
                 .filter(|&(_yi, &di)| di == weekday)
-                .map(|(&yi, _di)| yi)
-                .collect::<Array1<_>>();
-            let dy = &y_weekly.slice(s![1..]) - &y_weekly.slice(s![..-1]);
-            let p = dy.iter().filter(|&&x| x > 0.).count() as f64 / dy.len() as f64;
+                .map(|(&yi, _di)| yi);
+            let mut win_count = 0usize;
+            let mut total_count = 0usize;
+            let mut y_weekly_prev = y_weekly_iter
+                .next()
+                .ok_or(KellyError("cannot calculate winning rate"))?;
+            for y_weekly_curr in y_weekly_iter {
+                if y_weekly_curr > y_weekly_prev {
+                    win_count += 1;
+                }
+                total_count += 1;
+                y_weekly_prev = y_weekly_curr;
+            }
+            if total_count == 0 {
+                return Err(Box::new(KellyError("cannot calculate winning rate")));
+            }
+            let p = win_count as f64 / total_count as f64;
 
             let (y_max, y_min) = maxmin!(y);
             let (y0_max, y0_min) = maxmin!(y0);
@@ -166,10 +192,9 @@ pub fn kelly_weekly(
             let f = risk_control(f, *y0.last().unwrap(), y0_max, y0_min, risk_bounds[j]);
 
             // Adjust position
-            let total = it.asset() / it.nfunds() as f64 * f;
-            let current = it.fund_asset(j);
-            let amount = total - current;
-            it.buy_comment(j, amount, 0.0, &format!("position = {:.2}%", 100. * f))?;
+            let position = f / it.nfunds() as f64;
+            let comment = &format!("position = {:.2}%", 100. * f);
+            it.position_comment(j, position, 0.0, true, comment)?;
         }
     }
     Ok(())
@@ -357,9 +382,10 @@ mod test {
         // Compare the asset logs.
         let log1 = it1.asset_log().unwrap();
         let log2 = it2.asset_log().unwrap();
-        assert!(log1
-            .iter()
-            .zip(log2.iter())
-            .all(|(&a, &b)| (a - b).abs() < 1e-10));
+        assert!(
+            log1.iter()
+                .zip(log2.iter())
+                .all(|(&a, &b)| (a - b).abs() < 1e-10)
+        );
     }
 }
