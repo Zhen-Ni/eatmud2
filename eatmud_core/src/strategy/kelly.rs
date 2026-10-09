@@ -2,6 +2,7 @@ use crate::DAYS_PER_YEAR;
 use crate::{TransactionIterator, Weekday};
 use chrono::Datelike;
 use ndarray::{Array, s};
+use std::collections::VecDeque;
 
 #[derive(Debug)]
 pub struct KellyError(&'static str);
@@ -129,6 +130,10 @@ pub fn kelly_hint(
 }
 
 /// The Kelly strategy transacts weekly.
+///
+/// This implementation maintains the sliding-window extrema and the
+/// winning rate incrementally, so each week costs only O(log n)
+/// amortized instead of O(n) per fund.
 pub fn kelly_weekly(
     it: &mut TransactionIterator,
     weekday: Weekday,
@@ -141,63 +146,187 @@ pub fn kelly_weekly(
             "ns too large for transaction simulation",
         )));
     }
-    let mut inflation_arrays = Vec::new();
-    for i in 0..it.nfunds() {
-        let arr = Array::linspace((ns[i] - 1) as f64, 0., ns[i]);
-        let arr = arr.mapv(|x| (1. + inflations[i]).powf(x / DAYS_PER_YEAR));
-        inflation_arrays.push(arr);
-    }
-    let mut weekday_cache = it.dates().iter().map(|d| d.weekday()).collect::<Vec<_>>();
+    let nfunds = it.nfunds();
+    let mut states: Vec<_> = (0..nfunds)
+        .map(|j| KellyFundState::new(ns[j], inflations[j], risk_bounds[j]))
+        .collect();
+    // Indices (into the transaction dates) of the iterated days
+    // matching `weekday`.
+    let mut samples: Vec<usize> = Vec::new();
+    // Number of days that have been pushed into `states`.
+    let mut pushed = 0usize;
 
     while it.next_weekday(Some(weekday)).is_some() {
-        weekday_cache.extend(
-            it.dates()[weekday_cache.len()..]
-                .iter()
-                .map(|d| d.weekday()),
-        );
-        for j in 0..it.nfunds() {
-            let navs = it.navs();
-            // Net asset value of the last n days.
-            let y0 = navs.slice(s![-(ns[j] as isize).., j as isize]);
-            // Net asset value considering inflation: y = y0 * (1 + inflation) ** number_of_years_to_today
-            let y = &y0 * &inflation_arrays[j];
-            // Get winning rate `p`.
-            let mut y_weekly_iter = y
-                .iter()
-                .zip(&weekday_cache[weekday_cache.len() - ns[j]..])
-                .filter(|&(_yi, &di)| di == weekday)
-                .map(|(&yi, _di)| yi);
-            let mut win_count = 0usize;
-            let mut total_count = 0usize;
-            let mut y_weekly_prev = y_weekly_iter
-                .next()
-                .ok_or(KellyError("cannot calculate winning rate"))?;
-            for y_weekly_curr in y_weekly_iter {
-                if y_weekly_curr > y_weekly_prev {
-                    win_count += 1;
-                }
-                total_count += 1;
-                y_weekly_prev = y_weekly_curr;
-            }
-            if total_count == 0 {
-                return Err(Box::new(KellyError("cannot calculate winning rate")));
-            }
-            let p = win_count as f64 / total_count as f64;
-
-            let (y_max, y_min) = maxmin!(y);
-            let (y0_max, y0_min) = maxmin!(y0);
-            // Kelly.
-            let f = get_kelly_position(*y.last().unwrap(), y_max, y_min, p);
-            // Risk control.
-            let f = risk_control(f, *y0.last().unwrap(), y0_max, y0_min, risk_bounds[j]);
-
+        push_new_days(&*it, weekday, &mut states, &mut samples, &mut pushed);
+        for j in 0..nfunds {
+            let f = states[j].position(it, j, &samples)?;
             // Adjust position
-            let position = f / it.nfunds() as f64;
+            let position = f / nfunds as f64;
             let comment = &format!("position = {:.2}%", 100. * f);
             it.position_comment(j, position, 0.0, true, comment)?;
         }
     }
     Ok(())
+}
+
+/// Push newly iterated days into the per-fund states.
+fn push_new_days(
+    it: &TransactionIterator,
+    weekday: Weekday,
+    states: &mut [KellyFundState],
+    samples: &mut Vec<usize>,
+    pushed: &mut usize,
+) {
+    let navs = it.navs();
+    let dates = it.dates();
+    for i in *pushed..it.index() {
+        let is_sample = dates[i].weekday() == weekday;
+        if is_sample {
+            samples.push(i);
+        }
+        for (j, st) in states.iter_mut().enumerate() {
+            st.push_day(i, navs[[i, j]], is_sample);
+        }
+    }
+    *pushed = it.index();
+}
+
+/// Incremental state of one fund for the Kelly strategy.
+///
+/// The state is updated once per day and queried once per week, so
+/// the total cost is O(ndays) instead of O(ndays * ns).
+struct KellyFundState {
+    /// Window length.
+    n: usize,
+    inflation: f64,
+    risk_bound: f64,
+    /// Monotonic deques of `(day, key)` pairs maintaining the maximal
+    /// and minimal values over the sliding window.
+    ///
+    /// The NAV considering inflation on day `i` is
+    /// `nav[i] * (1 + inflation) ^ ((t - i) / DAYS_PER_YEAR)`, where
+    /// `t` is the last day of the window. As the ratio between any
+    /// two days is independent of `t`, comparisons within the window
+    /// never change while the window slides. Therefore the deques are
+    /// keyed by the time-invariant anchored value
+    /// `nav[i] * (1 + inflation) ^ (-i / DAYS_PER_YEAR)`, and the real
+    /// (inflated) value is reconstructed only for the extremum when
+    /// querying.
+    max_dq: VecDeque<(usize, f64)>,
+    min_dq: VecDeque<(usize, f64)>,
+    /// Monotonic deques for the extrema of the raw NAV (`y0`).
+    nav_max_dq: VecDeque<(usize, f64)>,
+    nav_min_dq: VecDeque<(usize, f64)>,
+    /// Prefix sums of the winning flags, aligned with `samples`:
+    /// `win_pref[s]` is the number of wins among the sample pairs
+    /// `(samples[0], samples[1])`, ..., `(samples[s-1], samples[s])`.
+    win_pref: Vec<usize>,
+    /// Anchored key of the latest sample.
+    last_sample_key: Option<f64>,
+}
+
+impl KellyFundState {
+    fn new(n: usize, inflation: f64, risk_bound: f64) -> Self {
+        KellyFundState {
+            n,
+            inflation,
+            risk_bound,
+            max_dq: VecDeque::new(),
+            min_dq: VecDeque::new(),
+            nav_max_dq: VecDeque::new(),
+            nav_min_dq: VecDeque::new(),
+            win_pref: Vec::new(),
+            last_sample_key: None,
+        }
+    }
+
+    /// Update the state with the NAV of a new day.
+    ///
+    /// `is_sample` tells whether the day matches the target weekday;
+    /// the caller is responsible for pushing the day into `samples`.
+    fn push_day(&mut self, idx: usize, nav: f64, is_sample: bool) {
+        let key = nav * (1. + self.inflation).powf(-(idx as f64) / DAYS_PER_YEAR);
+        // Strict comparisons keep the earliest day among equal
+        // values, matching a linear scan over the window.
+        while self.max_dq.back().is_some_and(|&(_, k)| k < key) {
+            self.max_dq.pop_back();
+        }
+        self.max_dq.push_back((idx, key));
+        while self.min_dq.back().is_some_and(|&(_, k)| k > key) {
+            self.min_dq.pop_back();
+        }
+        self.min_dq.push_back((idx, key));
+        while self.nav_max_dq.back().is_some_and(|&(_, v)| v < nav) {
+            self.nav_max_dq.pop_back();
+        }
+        self.nav_max_dq.push_back((idx, nav));
+        while self.nav_min_dq.back().is_some_and(|&(_, v)| v > nav) {
+            self.nav_min_dq.pop_back();
+        }
+        self.nav_min_dq.push_back((idx, nav));
+        if is_sample {
+            let prev = self.win_pref.last().copied().unwrap_or(0);
+            let flag = self.last_sample_key.map_or(0, |k| (key > k) as usize);
+            self.win_pref.push(prev + flag);
+            self.last_sample_key = Some(key);
+        }
+    }
+
+    /// Compute the position of fund `fund` given by the Kelly
+    /// equation and risk control, based on the sliding window ending
+    /// at the current status of the iterator.
+    fn position(
+        &mut self,
+        it: &TransactionIterator,
+        fund: usize,
+        samples: &[usize],
+    ) -> Result<f64, KellyError> {
+        let hi = it.index();
+        let lo = hi - self.n;
+        // Winning rate over the sample pairs within the window.
+        let a = samples.partition_point(|&i| i < lo);
+        let b = samples[a..].partition_point(|&i| i < hi) + a;
+        if b - a < 2 {
+            return Err(KellyError("cannot calculate winning rate"));
+        }
+        let total_count = b - a - 1;
+        let win_count = self.win_pref[b - 1] - self.win_pref[a];
+        let p = win_count as f64 / total_count as f64;
+        // Drop the days that just slid out of the window.
+        while self.max_dq.front().is_some_and(|&(i, _)| i < lo) {
+            self.max_dq.pop_front();
+        }
+        while self.min_dq.front().is_some_and(|&(i, _)| i < lo) {
+            self.min_dq.pop_front();
+        }
+        while self.nav_max_dq.front().is_some_and(|&(i, _)| i < lo) {
+            self.nav_max_dq.pop_front();
+        }
+        while self.nav_min_dq.front().is_some_and(|&(i, _)| i < lo) {
+            self.nav_min_dq.pop_front();
+        }
+        let t = hi - 1;
+        let navs = it.navs();
+        // Reconstruct the inflated values of the extrema. The
+        // expression is identical to the elementwise product of the
+        // NAV window with the inflation multipliers, so the result is
+        // numerically the same as a full recomputation.
+        let imax = self.max_dq.front().unwrap().0;
+        let imin = self.min_dq.front().unwrap().0;
+        let y_max =
+            navs[[imax, fund]] * (1. + self.inflation).powf((t - imax) as f64 / DAYS_PER_YEAR);
+        let y_min =
+            navs[[imin, fund]] * (1. + self.inflation).powf((t - imin) as f64 / DAYS_PER_YEAR);
+        let y0_max = self.nav_max_dq.front().unwrap().1;
+        let y0_min = self.nav_min_dq.front().unwrap().1;
+        // The multiplier of the last day is always 1, so both
+        // `y.last()` and `y0.last()` equal the latest NAV.
+        let y_last = navs[[t, fund]];
+        // Kelly.
+        let f = get_kelly_position(y_last, y_max, y_min, p);
+        // Risk control.
+        Ok(risk_control(f, y_last, y0_max, y0_min, self.risk_bound))
+    }
 }
 
 /// Calculate the position given by kelly startegy.
@@ -387,5 +516,63 @@ mod test {
                 .zip(log2.iter())
                 .all(|(&a, &b)| (a - b).abs() < 1e-10)
         );
+    }
+
+    /// Compare the optimized `kelly_weekly` against the baseline
+    /// implementation (full recomputation via `kelly_hint`) on all
+    /// weekdays, including the trades (records) and final assets.
+    #[test]
+    fn test_kelly_baseline() {
+        let hs300 = Fund::from(&read_tdx("../tdx/test-hs300.txt").unwrap());
+        let gz2000 = Fund::from(&read_tdx("../tdx/test-gz2000.txt").unwrap());
+        let start_date = NaiveDate::parse_from_str("20170101", "%Y%m%d").unwrap();
+        let end_date = NaiveDate::parse_from_str("20240101", "%Y%m%d").unwrap();
+        let trans = Transaction::new(&[&hs300, &gz2000], None, Some(end_date));
+
+        let ns = [1300, 1600];
+        let inflations = [0.015, 0.015];
+        let risk_bounds = [0.01, 0.01];
+
+        for weekday in 0..5 {
+            let weekday = Weekday::try_from(weekday).unwrap();
+
+            let mut it1 = trans.iter(true, true);
+            it1.goto(start_date);
+            it1.inflow(1.).unwrap();
+            kelly_weekly(&mut it1, weekday, &ns, &inflations, &risk_bounds).unwrap();
+
+            // Baseline: replicate the original full-recompute
+            // implementation via `kelly_hint`.
+            let mut it2 = trans.iter(true, true);
+            it2.goto(start_date);
+            it2.inflow(1.).unwrap();
+            while it2.next_weekday(Some(weekday)).is_some() {
+                for i in 0..trans.nfunds() {
+                    let indicator =
+                        kelly_hint(&it2, i, weekday, ns[i], inflations[i], risk_bounds[i]).unwrap();
+                    // Adjust position the same way as kelly_weekly
+                    // does (`perfect_position = true` is equivalent
+                    // to buying the exact target amount).
+                    let total = it2.asset() / trans.nfunds() as f64 * indicator.position;
+                    let amount = total - it2.fund_asset(i);
+                    let comment = format!("position = {:.2}%", 100. * indicator.position);
+                    it2.buy_comment(i, amount, 0.0, &comment).unwrap();
+                }
+            }
+
+            // The two implementations must produce the same trades.
+            assert!((it1.asset() - it2.asset()).abs() < 1e-10);
+            for i in 0..trans.nfunds() {
+                let record1 = it1.fund_record(i).unwrap();
+                let record2 = it2.fund_record(i).unwrap();
+                assert_eq!(record1.len(), record2.len());
+                for j in 0..record1.len() {
+                    assert_eq!(record1[j].comment(), record2[j].comment());
+                    assert!(
+                        (record1[j].present_value() - record2[j].present_value()).abs() < 1e-10
+                    );
+                }
+            }
+        }
     }
 }
